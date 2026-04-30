@@ -1,6 +1,6 @@
 # Gamma Sonos Player
 
-A focused Home Assistant Lovelace card for Sonos rooms, Spotify/Sonos URI playback, grouping, and Music Assistant search/playback.
+A focused Home Assistant Lovelace card for Music Assistant search/playback plus Sonos-style speaker grouping and per-room volume.
 
 ## Install
 
@@ -28,18 +28,17 @@ entities:
   - media_player.bedroom
 music_assistant_entities:
   - media_player.lanai_music_assistant
-provider_mode: music_assistant
-enqueue_mode: replace
+enqueue_mode: next
 ```
 
 ## What Works In This First Build
 
-- Select Sonos or Music Assistant players.
+- Select speaker-like media players.
 - Play, pause, previous, next, mute, and volume.
 - Group and ungroup speakers with `media_player.join` and `media_player.unjoin`.
-- Paste a Spotify/Sonos URI or link and play it through `media_player.play_media`.
-- Search Music Assistant through `music_assistant.search` when HA exposes service responses to the card.
-- Play Music Assistant search results with `music_assistant.play_media`.
+- Search Music Assistant for songs, albums, artists, and playlists.
+- Tap a result to add it next with `music_assistant.play_media`.
+- Use the Speakers tab for room chips, grouping, ungrouping, and always-visible per-speaker volume.
 
 ## Options
 
@@ -49,12 +48,10 @@ enqueue_mode: replace
 | `entities` | `string[]` | Auto-discovered Sonos/MA players | Sonos/media players shown in room and grouping controls. |
 | `music_assistant_entities` | `string[]` | `[]` | Optional MA-specific players. |
 | `name` | `string` | Selected player name | Card title. |
-| `provider_mode` | `string` | `music_assistant` | `music_assistant` or `sonos`. |
-| `enqueue_mode` | `string` | `replace` | Passed to MA or media player playback. |
+| `enqueue_mode` | `string` | `next` | Passed to Music Assistant playback. |
 | `search_limit` | `number` | `8` | Music Assistant search result limit. |
 | `show_grouping` | `boolean` | `true` | Show group chips. |
 | `show_search` | `boolean` | `true` | Show search/play field. |
-| `show_source_toggle` | `boolean` | `true` | Show provider toggle. |
 | `width` | `string` | `420px` | Card width. |
 | `height` | `string` | `620px` | Minimum card height. |
 | `background` | `string` | `#101722` | Base background. |
@@ -62,4 +59,4 @@ enqueue_mode: replace
 
 ## Notes
 
-Sonos Spotify playback depends on your Spotify account already being available to Sonos. Music Assistant search/playback depends on the official Music Assistant integration and its HA actions.
+Spotify should be configured as a Music Assistant music provider. This card uses Music Assistant for search/playback and Home Assistant media player services for transport, volume, and grouping.

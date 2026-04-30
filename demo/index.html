@@ -101,7 +101,7 @@
             media_title: 'Sweet Disposition',
             media_artist: 'The Temper Trap',
             media_album_name: 'Conditions',
-            entity_picture:
+            entity_picture_local:
               'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=600&q=80',
             volume_level: 0.42,
             is_volume_muted: false,
@@ -208,8 +208,7 @@
         entities: ['media_player.lanai', 'media_player.kitchen', 'media_player.bedroom'],
         music_assistant_entities: ['media_player.ma_lanai'],
         entity: 'media_player.lanai',
-        provider_mode: 'music_assistant',
-        enqueue_mode: 'replace',
+        enqueue_mode: 'next',
       });
       player.hass = hass;
     </script>
