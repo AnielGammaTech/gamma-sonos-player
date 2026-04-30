@@ -45,7 +45,7 @@ const mt = (r) => new lt(typeof r == "string" ? r : r + "", void 0, Z), ft = (r,
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: vt, defineProperty: $t, getOwnPropertyDescriptor: _t, getOwnPropertyNames: yt, getOwnPropertySymbols: xt, getPrototypeOf: wt } = Object, v = globalThis, Y = v.trustedTypes, At = Y ? Y.emptyScript : "", G = v.reactiveElementPolyfillSupport, k = (r, t) => r, V = { toAttribute(r, t) {
+const { is: _t, defineProperty: vt, getOwnPropertyDescriptor: $t, getOwnPropertyNames: yt, getOwnPropertySymbols: xt, getPrototypeOf: wt } = Object, _ = globalThis, Y = _.trustedTypes, At = Y ? Y.emptyScript : "", G = _.reactiveElementPolyfillSupport, k = (r, t) => r, V = { toAttribute(r, t) {
   switch (t) {
     case Boolean:
       r = r ? At : null;
@@ -73,8 +73,8 @@ const { is: vt, defineProperty: $t, getOwnPropertyDescriptor: _t, getOwnProperty
       }
   }
   return e;
-} }, ht = (r, t) => !vt(r, t), tt = { attribute: !0, type: String, converter: V, reflect: !1, useDefault: !1, hasChanged: ht };
-Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), v.litPropertyMetadata ?? (v.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
+} }, ht = (r, t) => !_t(r, t), tt = { attribute: !0, type: String, converter: V, reflect: !1, useDefault: !1, hasChanged: ht };
+Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), _.litPropertyMetadata ?? (_.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
 let w = class extends HTMLElement {
   static addInitializer(t) {
     this._$Ei(), (this.l ?? (this.l = [])).push(t);
@@ -85,11 +85,11 @@ let w = class extends HTMLElement {
   static createProperty(t, e = tt) {
     if (e.state && (e.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(t) && ((e = Object.create(e)).wrapped = !0), this.elementProperties.set(t, e), !e.noAccessor) {
       const s = Symbol(), i = this.getPropertyDescriptor(t, s, e);
-      i !== void 0 && $t(this.prototype, t, i);
+      i !== void 0 && vt(this.prototype, t, i);
     }
   }
   static getPropertyDescriptor(t, e, s) {
-    const { get: i, set: a } = _t(this.prototype, t) ?? { get() {
+    const { get: i, set: a } = $t(this.prototype, t) ?? { get() {
       return this[e];
     }, set(n) {
       this[e] = n;
@@ -278,15 +278,15 @@ let w = class extends HTMLElement {
   firstUpdated(t) {
   }
 };
-w.elementStyles = [], w.shadowRootOptions = { mode: "open" }, w[k("elementProperties")] = /* @__PURE__ */ new Map(), w[k("finalized")] = /* @__PURE__ */ new Map(), G == null || G({ ReactiveElement: w }), (v.reactiveElementVersions ?? (v.reactiveElementVersions = [])).push("2.1.2");
+w.elementStyles = [], w.shadowRootOptions = { mode: "open" }, w[k("elementProperties")] = /* @__PURE__ */ new Map(), w[k("finalized")] = /* @__PURE__ */ new Map(), G == null || G({ ReactiveElement: w }), (_.reactiveElementVersions ?? (_.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const P = globalThis, et = (r) => r, j = P.trustedTypes, st = j ? j.createPolicy("lit-html", { createHTML: (r) => r }) : void 0, dt = "$lit$", b = `lit$${Math.random().toFixed(9).slice(2)}$`, ut = "?" + b, Et = `<${ut}>`, x = document, M = () => x.createComment(""), U = (r) => r === null || typeof r != "object" && typeof r != "function", J = Array.isArray, St = (r) => J(r) || typeof (r == null ? void 0 : r[Symbol.iterator]) == "function", D = `[ 	
-\f\r]`, S = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, it = /-->/g, rt = />/g, $ = RegExp(`>|${D}(?:([^\\s"'>=/]+)(${D}*=${D}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), at = /'/g, nt = /"/g, pt = /^(?:script|style|textarea|title)$/i, kt = (r) => (t, ...e) => ({ _$litType$: r, strings: t, values: e }), p = kt(1), A = Symbol.for("lit-noChange"), l = Symbol.for("lit-nothing"), ot = /* @__PURE__ */ new WeakMap(), _ = x.createTreeWalker(x, 129);
+\f\r]`, S = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, it = /-->/g, rt = />/g, v = RegExp(`>|${D}(?:([^\\s"'>=/]+)(${D}*=${D}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), at = /'/g, nt = /"/g, pt = /^(?:script|style|textarea|title)$/i, kt = (r) => (t, ...e) => ({ _$litType$: r, strings: t, values: e }), p = kt(1), A = Symbol.for("lit-noChange"), l = Symbol.for("lit-nothing"), ot = /* @__PURE__ */ new WeakMap(), $ = x.createTreeWalker(x, 129);
 function gt(r, t) {
   if (!J(r) || !r.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return st !== void 0 ? st.createHTML(t) : t;
@@ -297,8 +297,8 @@ const Pt = (r, t) => {
   for (let c = 0; c < e; c++) {
     const o = r[c];
     let d, u, h = -1, g = 0;
-    for (; g < o.length && (n.lastIndex = g, u = n.exec(o), u !== null); ) g = n.lastIndex, n === S ? u[1] === "!--" ? n = it : u[1] !== void 0 ? n = rt : u[2] !== void 0 ? (pt.test(u[2]) && (i = RegExp("</" + u[2], "g")), n = $) : u[3] !== void 0 && (n = $) : n === $ ? u[0] === ">" ? (n = i ?? S, h = -1) : u[1] === void 0 ? h = -2 : (h = n.lastIndex - u[2].length, d = u[1], n = u[3] === void 0 ? $ : u[3] === '"' ? nt : at) : n === nt || n === at ? n = $ : n === it || n === rt ? n = S : (n = $, i = void 0);
-    const m = n === $ && r[c + 1].startsWith("/>") ? " " : "";
+    for (; g < o.length && (n.lastIndex = g, u = n.exec(o), u !== null); ) g = n.lastIndex, n === S ? u[1] === "!--" ? n = it : u[1] !== void 0 ? n = rt : u[2] !== void 0 ? (pt.test(u[2]) && (i = RegExp("</" + u[2], "g")), n = v) : u[3] !== void 0 && (n = v) : n === v ? u[0] === ">" ? (n = i ?? S, h = -1) : u[1] === void 0 ? h = -2 : (h = n.lastIndex - u[2].length, d = u[1], n = u[3] === void 0 ? v : u[3] === '"' ? nt : at) : n === nt || n === at ? n = v : n === it || n === rt ? n = S : (n = v, i = void 0);
+    const m = n === v && r[c + 1].startsWith("/>") ? " " : "";
     a += n === S ? o + Et : h >= 0 ? (s.push(d), o.slice(0, h) + dt + o.slice(h) + b + m) : o + b + (h === -2 ? c : m);
   }
   return [gt(r, a + (r[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), s];
@@ -309,11 +309,11 @@ class R {
     this.parts = [];
     let a = 0, n = 0;
     const c = t.length - 1, o = this.parts, [d, u] = Pt(t, e);
-    if (this.el = R.createElement(d, s), _.currentNode = this.el.content, e === 2 || e === 3) {
+    if (this.el = R.createElement(d, s), $.currentNode = this.el.content, e === 2 || e === 3) {
       const h = this.el.content.firstChild;
       h.replaceWith(...h.childNodes);
     }
-    for (; (i = _.nextNode()) !== null && o.length < c; ) {
+    for (; (i = $.nextNode()) !== null && o.length < c; ) {
       if (i.nodeType === 1) {
         if (i.hasAttributes()) for (const h of i.getAttributeNames()) if (h.endsWith(dt)) {
           const g = u[n++], m = i.getAttribute(h).split(b), I = /([.?@])?(.*)/.exec(g);
@@ -323,7 +323,7 @@ class R {
           const h = i.textContent.split(b), g = h.length - 1;
           if (g > 0) {
             i.textContent = j ? j.emptyScript : "";
-            for (let m = 0; m < g; m++) i.append(h[m], M()), _.nextNode(), o.push({ type: 2, index: ++a });
+            for (let m = 0; m < g; m++) i.append(h[m], M()), $.nextNode(), o.push({ type: 2, index: ++a });
             i.append(h[g], M());
           }
         }
@@ -359,16 +359,16 @@ class Ct {
   }
   u(t) {
     const { el: { content: e }, parts: s } = this._$AD, i = ((t == null ? void 0 : t.creationScope) ?? x).importNode(e, !0);
-    _.currentNode = i;
-    let a = _.nextNode(), n = 0, c = 0, o = s[0];
+    $.currentNode = i;
+    let a = $.nextNode(), n = 0, c = 0, o = s[0];
     for (; o !== void 0; ) {
       if (n === o.index) {
         let d;
         o.type === 2 ? d = new T(a, a.nextSibling, this, t) : o.type === 1 ? d = new o.ctor(a, o.name, o.strings, this, t) : o.type === 6 && (d = new Tt(a, this, t)), this._$AV.push(d), o = s[++c];
       }
-      n !== (o == null ? void 0 : o.index) && (a = _.nextNode(), n++);
+      n !== (o == null ? void 0 : o.index) && (a = $.nextNode(), n++);
     }
-    return _.currentNode = x, i;
+    return $.currentNode = x, i;
   }
   p(t) {
     let e = 0;
@@ -1120,12 +1120,18 @@ const K = class K extends C {
     }
     this.searching = !0, this.searchError = "";
     try {
+      if (!this.config.music_assistant_config_entry_id) {
+        this.searchError = "Add music_assistant_config_entry_id to this card config.";
+        return;
+      }
       const i = await this.hass.callWS({
         type: "call_service",
         domain: "music_assistant",
         service: "search",
         service_data: {
+          config_entry_id: this.config.music_assistant_config_entry_id,
           name: t,
+          media_type: ["track", "album", "artist", "playlist"],
           limit: N(this.config.search_limit, f.search_limit)
         },
         return_response: !0

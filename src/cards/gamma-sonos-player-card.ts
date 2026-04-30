@@ -47,6 +47,7 @@ interface GammaSonosPlayerConfig {
   type?: string;
   entities?: string[];
   music_assistant_entities?: string[];
+  music_assistant_config_entry_id?: string;
   entity?: string;
   name?: string;
   width?: string;
@@ -747,12 +748,19 @@ export class GammaSonosPlayerCard extends LitElement {
     this.searchError = '';
 
     try {
+      if (!this.config.music_assistant_config_entry_id) {
+        this.searchError = 'Add music_assistant_config_entry_id to this card config.';
+        return;
+      }
+
       const response = await this.hass.callWS<Record<string, unknown>>({
         type: 'call_service',
         domain: 'music_assistant',
         service: 'search',
         service_data: {
+          config_entry_id: this.config.music_assistant_config_entry_id,
           name,
+          media_type: ['track', 'album', 'artist', 'playlist'],
           limit: toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit),
         },
         return_response: true,
