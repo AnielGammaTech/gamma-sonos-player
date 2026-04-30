@@ -144,9 +144,10 @@
 
       const hass = {
         states,
-        callService(domain, service, data) {
-          console.log('service', domain, service, data);
-          const entity = states[data?.entity_id];
+        callService(domain, service, data, target) {
+          console.log('service', domain, service, data, target);
+          const targetEntityId = target?.entity_id || data?.entity_id;
+          const entity = states[targetEntityId];
           if (!entity) return;
 
           if (domain === 'media_player' && service === 'media_play') entity.state = 'playing';

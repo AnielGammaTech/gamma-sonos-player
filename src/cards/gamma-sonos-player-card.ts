@@ -58,6 +58,7 @@ interface GammaSonosPlayerConfig {
   width?: string;
   height?: string;
   fill_container?: boolean;
+  compact?: boolean;
   enqueue_mode?: EnqueueMode;
   search_limit?: number;
   library_only?: boolean;
@@ -87,6 +88,7 @@ const DEFAULT_CONFIG: Required<
     | 'width'
     | 'height'
     | 'fill_container'
+    | 'compact'
     | 'enqueue_mode'
     | 'search_limit'
     | 'library_only'
@@ -97,11 +99,12 @@ const DEFAULT_CONFIG: Required<
     | 'accent_color'
   >
 > = {
-  width: '100%',
+  width: '420px',
   height: 'auto',
-  fill_container: true,
+  fill_container: false,
+  compact: false,
   enqueue_mode: 'next',
-  search_limit: 8,
+  search_limit: 5,
   library_only: false,
   show_grouping: true,
   show_search: true,
@@ -176,7 +179,6 @@ export class GammaSonosPlayerCard extends LitElement {
         display: block;
         box-sizing: border-box;
         width: var(--gamma-sonos-width);
-        max-width: 100%;
         min-width: 0;
       }
 
@@ -214,6 +216,23 @@ export class GammaSonosPlayerCard extends LitElement {
         min-width: 0;
       }
 
+      .player.compact {
+        gap: 10px;
+      }
+
+      .player.compact .artwork {
+        max-width: min(190px, 62%);
+        width: min(190px, 62%);
+      }
+
+      .player.compact .rooms {
+        padding-bottom: 5px;
+      }
+
+      .player.compact .track {
+        font-size: clamp(16px, 4.2vw, 20px);
+      }
+
       .player::before {
         background-image: var(--gamma-sonos-artwork);
         background-position: center;
@@ -232,6 +251,8 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .topbar,
       .rooms,
+      .now-row,
+      .now-speakers,
       .tabs,
       .controls,
       .volume-row,
@@ -279,10 +300,14 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .rooms {
-        gap: 4px;
-        max-width: 100%;
-        overflow-x: auto;
-        scrollbar-width: thin;
+        align-items: stretch;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: 1fr;
+        padding: 0;
       }
 
       .room,
@@ -310,8 +335,61 @@ export class GammaSonosPlayerCard extends LitElement {
         white-space: nowrap;
       }
 
-      .room {
-        flex: 0 0 auto;
+      .now-row {
+        gap: 8px;
+        justify-content: space-between;
+        min-width: 0;
+      }
+
+      .now-speakers {
+        flex-wrap: wrap;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .now-label {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        margin-bottom: -2px;
+        text-transform: uppercase;
+      }
+
+      .now-chip {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 16%, transparent);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent);
+        border-radius: 999px;
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 12px;
+        font-weight: 750;
+        min-height: 28px;
+        padding: 0 10px;
+      }
+
+      .player-picker {
+        align-items: center;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 9%);
+        border-radius: 999px;
+        display: inline-flex;
+        gap: 6px;
+        justify-self: start;
+        min-width: 0;
+        padding: 5px 9px;
+      }
+
+      .player-picker select {
+        appearance: none;
+        background: transparent;
+        border: 0;
+        color: var(--primary-text-color, #f4f7fb);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 750;
+        max-width: 260px;
+        min-width: 0;
+        outline: 0;
       }
 
       .room.active,
@@ -586,13 +664,24 @@ export class GammaSonosPlayerCard extends LitElement {
         font-size: 11px;
       }
 
-      .result button {
+      .result-actions button {
         background: color-mix(in srgb, var(--gamma-sonos-accent) 16%, transparent);
         border-radius: 999px;
         font-size: 12px;
         font-weight: 750;
         min-height: 30px;
         padding: 0 10px;
+      }
+
+      .result-actions {
+        display: inline-flex;
+        flex: 0 0 auto;
+        gap: 6px;
+      }
+
+      .result-actions .now {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 28%, transparent);
+        color: var(--primary-text-color, #f4f7fb);
       }
 
       .hint,
@@ -728,8 +817,13 @@ export class GammaSonosPlayerCard extends LitElement {
     return Array.isArray(members) ? members : [this.activeEntityId].filter(Boolean);
   }
 
-  private service(domain: string, service: string, data?: Record<string, unknown>): void {
-    this.hass?.callService(domain, service, data);
+  private service(
+    domain: string,
+    service: string,
+    data?: Record<string, unknown>,
+    target?: Record<string, unknown>,
+  ): void {
+    this.hass?.callService(domain, service, data, target);
   }
 
   private mediaService(service: string, data: Record<string, unknown> = {}): void {
@@ -737,9 +831,8 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
-    this.service('media_player', service, {
+    this.service('media_player', service, data, {
       entity_id: this.activeEntityId,
-      ...data,
     });
   }
 
@@ -757,8 +850,9 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     this.service('media_player', 'volume_set', {
-      entity_id: entityId,
       volume_level: Math.max(0, Math.min(1, Number(value) / 100)),
+    }, {
+      entity_id: entityId,
     });
   }
 
@@ -774,8 +868,9 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     this.service('media_player', 'volume_mute', {
-      entity_id: entityId,
       is_volume_muted: !player.attributes.is_volume_muted,
+    }, {
+      entity_id: entityId,
     });
   }
 
@@ -794,8 +889,9 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     this.service('media_player', 'join', {
-      entity_id: this.activeEntityId,
       group_members: this.selectedGroupIds.filter((id) => id !== this.activeEntityId),
+    }, {
+      entity_id: this.activeEntityId,
     });
   }
 
@@ -870,19 +966,30 @@ export class GammaSonosPlayerCard extends LitElement {
     return items.slice(0, toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit));
   }
 
-  private playSearchResult(item: SearchItem): void {
+  private playSearchResult(item: SearchItem, enqueueOverride?: EnqueueMode): void {
     const mediaId = item.uri || item.name;
 
     if (!mediaId) {
       return;
     }
 
+    const configuredEnqueue =
+      enqueueOverride ?? this.config.enqueue_mode ?? DEFAULT_CONFIG.enqueue_mode;
+    const enqueue = this.isPlaying || configuredEnqueue !== 'next' ? configuredEnqueue : 'play';
+
     this.service('music_assistant', 'play_media', {
-      entity_id: this.activeEntityId,
       media_id: mediaId,
       media_type: item.media_type || item.type,
-      enqueue: this.config.enqueue_mode ?? DEFAULT_CONFIG.enqueue_mode,
+      enqueue,
+    }, {
+      entity_id: this.activeEntityId,
     });
+
+    window.setTimeout(() => {
+      if (!this.isPlaying) {
+        this.mediaService('media_play');
+      }
+    }, 500);
   }
 
   private renderRooms(): TemplateResult | typeof nothing {
@@ -892,22 +999,46 @@ export class GammaSonosPlayerCard extends LitElement {
       return nothing;
     }
 
+    const playingMembers = this.groupMembers
+      .map((entityId) => this.hass?.states[entityId])
+      .filter((player): player is HassEntity => Boolean(player));
+    const nowPlaying = playingMembers.length > 0 ? playingMembers : [this.activePlayer].filter(Boolean) as HassEntity[];
+
     return html`
-      <div class="rooms" aria-label="Players">
-        ${players.map(
-          (player) => html`
-            <button
-              class="room ${player.entity_id === this.activeEntityId ? 'active' : ''}"
-              @click=${() => {
-                this.selectedEntityId = player.entity_id;
-                const members = player.attributes.group_members;
-                this.selectedGroupIds = Array.isArray(members) ? [...members] : [player.entity_id];
+      <div class="rooms">
+        <span class="now-label">Now Playing On</span>
+        <div class="now-row">
+          <div class="now-speakers">
+            ${nowPlaying.map(
+              (player) => html`
+                <span class="now-chip">
+                  ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
+                </span>
+              `,
+            )}
+          </div>
+          <label class="player-picker">
+            <ha-icon .icon=${'mdi:speaker'}></ha-icon>
+            <select
+              .value=${this.activeEntityId}
+              @change=${(event: Event) => {
+                const entityId = (event.target as HTMLSelectElement).value;
+                const player = this.hass?.states[entityId];
+                this.selectedEntityId = entityId;
+                const members = player?.attributes.group_members;
+                this.selectedGroupIds = Array.isArray(members) ? [...members] : [entityId];
               }}
             >
-              ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
-            </button>
-          `,
-        )}
+              ${players.map(
+                (player) => html`
+                  <option .value=${player.entity_id}>
+                    ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
+                  </option>
+                `,
+              )}
+            </select>
+          </label>
+        </div>
       </div>
     `;
   }
@@ -1094,7 +1225,12 @@ export class GammaSonosPlayerCard extends LitElement {
                 <span class="result-name">${item.name ?? item.uri ?? 'Untitled'}</span>
                 <span class="result-sub">${artist}</span>
               </div>
-              <button @click=${() => this.playSearchResult(item)}>Next</button>
+              <span class="result-actions">
+                <button class="now" @click=${() => this.playSearchResult(item, 'play')}>
+                  Now
+                </button>
+                <button @click=${() => this.playSearchResult(item, 'next')}>Next</button>
+              </span>
             </div>
           `;
         })}
@@ -1120,7 +1256,7 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <ha-card>
         <div
-          class="player"
+          class="player ${this.config.compact ? 'compact' : ''}"
           style="
             --gamma-sonos-cover: ${cover};
             --gamma-sonos-artwork: ${cover};
@@ -1382,7 +1518,8 @@ class GammaSonosPlayerCardEditor extends LitElement {
             ${this.renderTextInput('Accent Color', 'accent_color', '#39d98a')}
           </div>
           <div class="grid">
-            ${this.renderSwitch('Fill Container', 'fill_container', true)}
+            ${this.renderSwitch('Fill Container', 'fill_container', false)}
+            ${this.renderSwitch('Compact Layout', 'compact', false)}
             ${this.renderSwitch('Show Search', 'show_search', true)}
             ${this.renderSwitch('Show Grouping', 'show_grouping', true)}
             ${this.renderSwitch('Library Only', 'library_only', false)}

@@ -54,12 +54,13 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 | `music_assistant_config_entry_id` | `string` | Optional | Music Assistant integration instance ID used by `music_assistant.search`. Recommended when available. |
 | `name` | `string` | Selected player name | Card title. |
 | `enqueue_mode` | `string` | `next` | Passed to Music Assistant playback. |
-| `search_limit` | `number` | `8` | Music Assistant search result limit. |
+| `search_limit` | `number` | `5` | Music Assistant search result limit. Lower values return faster. |
 | `library_only` | `boolean` | `false` | Search only Music Assistant library items when true. |
 | `show_grouping` | `boolean` | `true` | Show group chips. |
 | `show_search` | `boolean` | `true` | Show search/play field. |
-| `width` | `string` | `100%` | Card width when `fill_container` is false. |
-| `fill_container` | `boolean` | `true` | Stretch to the full dashboard card/container width. |
+| `width` | `string` | `420px` | Card width when `fill_container` is false. |
+| `fill_container` | `boolean` | `false` | Stretch to the full dashboard card/container width. |
+| `compact` | `boolean` | `false` | Use a denser layout for narrow dashboard columns. |
 | `height` | `string` | `auto` | Minimum card height. Use a CSS length to force a taller card. |
 | `background` | `string` | `#101722` | Base background. |
 | `accent_color` | `string` | `#39d98a` | Glow/accent color. |
