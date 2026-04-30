@@ -1,0 +1,33 @@
+{
+  "name": "gamma-sonos-player",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A focused Home Assistant Lovelace card for Sonos and Music Assistant playback",
+  "main": "gamma-sonos-player.js",
+  "scripts": {
+    "build": "vite build && cp dist/gamma-sonos-player.js gamma-sonos-player.js && cp dist/gamma-sonos-player.js.map gamma-sonos-player.js.map",
+    "demo": "vite --host 0.0.0.0",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "npm run build"
+  },
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "sonos",
+    "music-assistant",
+    "spotify",
+    "custom-card"
+  ],
+  "author": {
+    "name": "AnielGammaTech",
+    "url": "https://github.com/AnielGammaTech"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "lit": "^3.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^6.4.2"
+  }
+}
