@@ -52,8 +52,10 @@ interface GammaSonosPlayerConfig {
   name?: string;
   width?: string;
   height?: string;
+  fill_container?: boolean;
   enqueue_mode?: EnqueueMode;
   search_limit?: number;
+  library_only?: boolean;
   show_grouping?: boolean;
   show_search?: boolean;
   show_queue_hint?: boolean;
@@ -78,8 +80,10 @@ const DEFAULT_CONFIG: Required<
     GammaSonosPlayerConfig,
     | 'width'
     | 'height'
+    | 'fill_container'
     | 'enqueue_mode'
     | 'search_limit'
+    | 'library_only'
     | 'show_grouping'
     | 'show_search'
     | 'show_queue_hint'
@@ -87,10 +91,12 @@ const DEFAULT_CONFIG: Required<
     | 'accent_color'
   >
 > = {
-  width: '420px',
-  height: '620px',
+  width: '100%',
+  height: 'auto',
+  fill_container: true,
   enqueue_mode: 'next',
   search_limit: 8,
+  library_only: false,
   show_grouping: true,
   show_search: true,
   show_queue_hint: true,
@@ -149,8 +155,7 @@ export class GammaSonosPlayerCard extends LitElement {
         --gamma-sonos-accent: #39d98a;
 
         display: block;
-        max-width: var(--gamma-sonos-width);
-        width: 100%;
+        width: var(--gamma-sonos-width);
       }
 
       ha-card {
@@ -177,10 +182,10 @@ export class GammaSonosPlayerCard extends LitElement {
         box-sizing: border-box;
         color: var(--primary-text-color, #f4f7fb);
         display: grid;
-        gap: 14px;
+        gap: clamp(10px, 2.2vw, 14px);
         min-height: var(--gamma-sonos-height);
         overflow: hidden;
-        padding: 18px;
+        padding: clamp(12px, 3vw, 18px);
         position: relative;
         width: 100%;
       }
@@ -226,7 +231,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .name {
-        font-size: 16px;
+        font-size: clamp(14px, 3.4vw, 16px);
         font-weight: 750;
         line-height: 1.1;
         overflow: hidden;
@@ -300,8 +305,8 @@ export class GammaSonosPlayerCard extends LitElement {
           inset 0 1px 0 rgb(255 255 255 / 12%),
           0 14px 28px rgb(0 0 0 / 24%);
         justify-self: center;
-        max-width: 250px;
-        width: 68%;
+        max-width: min(250px, 72%);
+        width: min(250px, 72%);
       }
 
       .metadata {
@@ -311,7 +316,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .track {
-        font-size: 22px;
+        font-size: clamp(18px, 4.8vw, 22px);
         font-weight: 800;
         line-height: 1.12;
         overflow: hidden;
@@ -344,8 +349,8 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .icon-button {
-        height: 44px;
-        width: 44px;
+        height: clamp(38px, 9vw, 44px);
+        width: clamp(38px, 9vw, 44px);
       }
 
       .play-button {
@@ -353,8 +358,8 @@ export class GammaSonosPlayerCard extends LitElement {
           radial-gradient(circle, color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent), transparent 74%),
           rgb(255 255 255 / 8%);
         box-shadow: 0 0 24px color-mix(in srgb, var(--gamma-sonos-accent) 18%, transparent);
-        height: 58px;
-        width: 58px;
+        height: clamp(50px, 12vw, 58px);
+        width: clamp(50px, 12vw, 58px);
       }
 
       ha-icon {
@@ -397,7 +402,7 @@ export class GammaSonosPlayerCard extends LitElement {
       .group-row {
         display: grid;
         gap: 8px;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       }
 
       .group-chip {
@@ -450,7 +455,7 @@ export class GammaSonosPlayerCard extends LitElement {
       .group-actions {
         display: grid;
         gap: 8px;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       }
 
       .speaker-list {
@@ -467,7 +472,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .speaker-name {
-        flex: 0 0 112px;
+        flex: 0 0 min(112px, 36%);
         font-size: 12px;
         font-weight: 750;
         min-width: 0;
@@ -572,7 +577,10 @@ export class GammaSonosPlayerCard extends LitElement {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.selectedEntityId =
       this.config.entity || this.config.entities?.[0] || this.config.music_assistant_entities?.[0] || '';
-    this.style.setProperty('--gamma-sonos-width', this.config.width ?? DEFAULT_CONFIG.width);
+    this.style.setProperty(
+      '--gamma-sonos-width',
+      this.config.fill_container ? '100%' : this.config.width ?? DEFAULT_CONFIG.width,
+    );
     this.style.setProperty('--gamma-sonos-height', this.config.height ?? DEFAULT_CONFIG.height);
     this.style.setProperty(
       '--gamma-sonos-background',
@@ -586,6 +594,17 @@ export class GammaSonosPlayerCard extends LitElement {
 
   public getCardSize(): number {
     return 8;
+  }
+
+  public getGridOptions() {
+    return {
+      rows: 7,
+      columns: 6,
+      min_rows: 5,
+      max_rows: 12,
+      min_columns: 4,
+      max_columns: 12,
+    };
   }
 
   private get allPlayers(): HassEntity[] {
@@ -762,6 +781,7 @@ export class GammaSonosPlayerCard extends LitElement {
           name,
           media_type: ['track', 'album', 'artist', 'playlist'],
           limit: toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit),
+          library_only: Boolean(this.config.library_only ?? DEFAULT_CONFIG.library_only),
         },
         return_response: true,
       });

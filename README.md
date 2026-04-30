@@ -30,6 +30,7 @@ music_assistant_entities:
   - media_player.lanai_music_assistant
 music_assistant_config_entry_id: 01JEXNDHT21V0BHJXM7A5SZANV
 enqueue_mode: next
+library_only: false
 ```
 
 To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools > Actions, choose `music_assistant.search`, select your Music Assistant instance from the dropdown, switch the action editor to YAML, and copy the generated `config_entry_id`.
@@ -54,10 +55,12 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 | `name` | `string` | Selected player name | Card title. |
 | `enqueue_mode` | `string` | `next` | Passed to Music Assistant playback. |
 | `search_limit` | `number` | `8` | Music Assistant search result limit. |
+| `library_only` | `boolean` | `false` | Search only Music Assistant library items when true. |
 | `show_grouping` | `boolean` | `true` | Show group chips. |
 | `show_search` | `boolean` | `true` | Show search/play field. |
-| `width` | `string` | `420px` | Card width. |
-| `height` | `string` | `620px` | Minimum card height. |
+| `width` | `string` | `100%` | Card width when `fill_container` is false. |
+| `fill_container` | `boolean` | `true` | Stretch to the full dashboard card/container width. |
+| `height` | `string` | `auto` | Minimum card height. Use a CSS length to force a taller card. |
 | `background` | `string` | `#101722` | Base background. |
 | `accent_color` | `string` | `#39d98a` | Glow/accent color. |
 

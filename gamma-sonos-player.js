@@ -45,7 +45,7 @@ const mt = (r) => new lt(typeof r == "string" ? r : r + "", void 0, Z), ft = (r,
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: _t, defineProperty: vt, getOwnPropertyDescriptor: $t, getOwnPropertyNames: yt, getOwnPropertySymbols: xt, getPrototypeOf: wt } = Object, _ = globalThis, Y = _.trustedTypes, At = Y ? Y.emptyScript : "", G = _.reactiveElementPolyfillSupport, k = (r, t) => r, V = { toAttribute(r, t) {
+const { is: _t, defineProperty: vt, getOwnPropertyDescriptor: $t, getOwnPropertyNames: yt, getOwnPropertySymbols: xt, getPrototypeOf: wt } = Object, _ = globalThis, Y = _.trustedTypes, At = Y ? Y.emptyScript : "", L = _.reactiveElementPolyfillSupport, k = (r, t) => r, V = { toAttribute(r, t) {
   switch (t) {
     case Boolean:
       r = r ? At : null;
@@ -278,15 +278,15 @@ let w = class extends HTMLElement {
   firstUpdated(t) {
   }
 };
-w.elementStyles = [], w.shadowRootOptions = { mode: "open" }, w[k("elementProperties")] = /* @__PURE__ */ new Map(), w[k("finalized")] = /* @__PURE__ */ new Map(), G == null || G({ ReactiveElement: w }), (_.reactiveElementVersions ?? (_.reactiveElementVersions = [])).push("2.1.2");
+w.elementStyles = [], w.shadowRootOptions = { mode: "open" }, w[k("elementProperties")] = /* @__PURE__ */ new Map(), w[k("finalized")] = /* @__PURE__ */ new Map(), L == null || L({ ReactiveElement: w }), (_.reactiveElementVersions ?? (_.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const P = globalThis, et = (r) => r, j = P.trustedTypes, st = j ? j.createPolicy("lit-html", { createHTML: (r) => r }) : void 0, dt = "$lit$", b = `lit$${Math.random().toFixed(9).slice(2)}$`, ut = "?" + b, Et = `<${ut}>`, x = document, M = () => x.createComment(""), U = (r) => r === null || typeof r != "object" && typeof r != "function", J = Array.isArray, St = (r) => J(r) || typeof (r == null ? void 0 : r[Symbol.iterator]) == "function", D = `[ 	
+const P = globalThis, et = (r) => r, j = P.trustedTypes, st = j ? j.createPolicy("lit-html", { createHTML: (r) => r }) : void 0, dt = "$lit$", b = `lit$${Math.random().toFixed(9).slice(2)}$`, pt = "?" + b, Et = `<${pt}>`, x = document, M = () => x.createComment(""), U = (r) => r === null || typeof r != "object" && typeof r != "function", J = Array.isArray, St = (r) => J(r) || typeof (r == null ? void 0 : r[Symbol.iterator]) == "function", D = `[ 	
 \f\r]`, S = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, it = /-->/g, rt = />/g, v = RegExp(`>|${D}(?:([^\\s"'>=/]+)(${D}*=${D}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), at = /'/g, nt = /"/g, pt = /^(?:script|style|textarea|title)$/i, kt = (r) => (t, ...e) => ({ _$litType$: r, strings: t, values: e }), p = kt(1), A = Symbol.for("lit-noChange"), l = Symbol.for("lit-nothing"), ot = /* @__PURE__ */ new WeakMap(), $ = x.createTreeWalker(x, 129);
+\f\r"'\`<>=]|("|')|))|$)`, "g"), at = /'/g, nt = /"/g, ut = /^(?:script|style|textarea|title)$/i, kt = (r) => (t, ...e) => ({ _$litType$: r, strings: t, values: e }), u = kt(1), A = Symbol.for("lit-noChange"), l = Symbol.for("lit-nothing"), ot = /* @__PURE__ */ new WeakMap(), $ = x.createTreeWalker(x, 129);
 function gt(r, t) {
   if (!J(r) || !r.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return st !== void 0 ? st.createHTML(t) : t;
@@ -296,10 +296,10 @@ const Pt = (r, t) => {
   let i, a = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", n = S;
   for (let c = 0; c < e; c++) {
     const o = r[c];
-    let d, u, h = -1, g = 0;
-    for (; g < o.length && (n.lastIndex = g, u = n.exec(o), u !== null); ) g = n.lastIndex, n === S ? u[1] === "!--" ? n = it : u[1] !== void 0 ? n = rt : u[2] !== void 0 ? (pt.test(u[2]) && (i = RegExp("</" + u[2], "g")), n = v) : u[3] !== void 0 && (n = v) : n === v ? u[0] === ">" ? (n = i ?? S, h = -1) : u[1] === void 0 ? h = -2 : (h = n.lastIndex - u[2].length, d = u[1], n = u[3] === void 0 ? v : u[3] === '"' ? nt : at) : n === nt || n === at ? n = v : n === it || n === rt ? n = S : (n = v, i = void 0);
-    const m = n === v && r[c + 1].startsWith("/>") ? " " : "";
-    a += n === S ? o + Et : h >= 0 ? (s.push(d), o.slice(0, h) + dt + o.slice(h) + b + m) : o + b + (h === -2 ? c : m);
+    let d, p, h = -1, g = 0;
+    for (; g < o.length && (n.lastIndex = g, p = n.exec(o), p !== null); ) g = n.lastIndex, n === S ? p[1] === "!--" ? n = it : p[1] !== void 0 ? n = rt : p[2] !== void 0 ? (ut.test(p[2]) && (i = RegExp("</" + p[2], "g")), n = v) : p[3] !== void 0 && (n = v) : n === v ? p[0] === ">" ? (n = i ?? S, h = -1) : p[1] === void 0 ? h = -2 : (h = n.lastIndex - p[2].length, d = p[1], n = p[3] === void 0 ? v : p[3] === '"' ? nt : at) : n === nt || n === at ? n = v : n === it || n === rt ? n = S : (n = v, i = void 0);
+    const f = n === v && r[c + 1].startsWith("/>") ? " " : "";
+    a += n === S ? o + Et : h >= 0 ? (s.push(d), o.slice(0, h) + dt + o.slice(h) + b + f) : o + b + (h === -2 ? c : f);
   }
   return [gt(r, a + (r[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), s];
 };
@@ -308,7 +308,7 @@ class R {
     let i;
     this.parts = [];
     let a = 0, n = 0;
-    const c = t.length - 1, o = this.parts, [d, u] = Pt(t, e);
+    const c = t.length - 1, o = this.parts, [d, p] = Pt(t, e);
     if (this.el = R.createElement(d, s), $.currentNode = this.el.content, e === 2 || e === 3) {
       const h = this.el.content.firstChild;
       h.replaceWith(...h.childNodes);
@@ -316,18 +316,18 @@ class R {
     for (; (i = $.nextNode()) !== null && o.length < c; ) {
       if (i.nodeType === 1) {
         if (i.hasAttributes()) for (const h of i.getAttributeNames()) if (h.endsWith(dt)) {
-          const g = u[n++], m = i.getAttribute(h).split(b), I = /([.?@])?(.*)/.exec(g);
-          o.push({ type: 1, index: a, name: I[2], strings: m, ctor: I[1] === "." ? Mt : I[1] === "?" ? Ut : I[1] === "@" ? Rt : L }), i.removeAttribute(h);
+          const g = p[n++], f = i.getAttribute(h).split(b), I = /([.?@])?(.*)/.exec(g);
+          o.push({ type: 1, index: a, name: I[2], strings: f, ctor: I[1] === "." ? Mt : I[1] === "?" ? Ut : I[1] === "@" ? Rt : G }), i.removeAttribute(h);
         } else h.startsWith(b) && (o.push({ type: 6, index: a }), i.removeAttribute(h));
-        if (pt.test(i.tagName)) {
+        if (ut.test(i.tagName)) {
           const h = i.textContent.split(b), g = h.length - 1;
           if (g > 0) {
             i.textContent = j ? j.emptyScript : "";
-            for (let m = 0; m < g; m++) i.append(h[m], M()), $.nextNode(), o.push({ type: 2, index: ++a });
+            for (let f = 0; f < g; f++) i.append(h[f], M()), $.nextNode(), o.push({ type: 2, index: ++a });
             i.append(h[g], M());
           }
         }
-      } else if (i.nodeType === 8) if (i.data === ut) o.push({ type: 2, index: a });
+      } else if (i.nodeType === 8) if (i.data === pt) o.push({ type: 2, index: a });
       else {
         let h = -1;
         for (; (h = i.data.indexOf(b, h + 1)) !== -1; ) o.push({ type: 7, index: a }), h += b.length - 1;
@@ -438,7 +438,7 @@ class T {
     this._$AM === void 0 && (this._$Cv = t, (e = this._$AP) == null || e.call(this, t));
   }
 }
-class L {
+class G {
   get tagName() {
     return this.element.tagName;
   }
@@ -463,7 +463,7 @@ class L {
     t === l ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
   }
 }
-class Mt extends L {
+class Mt extends G {
   constructor() {
     super(...arguments), this.type = 3;
   }
@@ -471,7 +471,7 @@ class Mt extends L {
     this.element[this.name] = t === l ? void 0 : t;
   }
 }
-class Ut extends L {
+class Ut extends G {
   constructor() {
     super(...arguments), this.type = 4;
   }
@@ -479,7 +479,7 @@ class Ut extends L {
     this.element.toggleAttribute(this.name, !!t && t !== l);
   }
 }
-class Rt extends L {
+class Rt extends G {
   constructor(t, e, s, i, a) {
     super(t, e, s, i, a), this.type = 5;
   }
@@ -551,11 +551,13 @@ C._$litElement$ = !0, C.finalized = !0, (ct = y.litElementHydrateSupport) == nul
 const B = y.litElementPolyfillSupport;
 B == null || B({ LitElement: C });
 (y.litElementVersions ?? (y.litElementVersions = [])).push("4.2.2");
-const f = {
-  width: "420px",
-  height: "620px",
+const m = {
+  width: "100%",
+  height: "auto",
+  fill_container: !0,
   enqueue_mode: "next",
   search_limit: 8,
+  library_only: !1,
   show_grouping: !0,
   show_search: !0,
   show_queue_hint: !0,
@@ -587,8 +589,7 @@ const K = class K extends C {
         --gamma-sonos-accent: #39d98a;
 
         display: block;
-        max-width: var(--gamma-sonos-width);
-        width: 100%;
+        width: var(--gamma-sonos-width);
       }
 
       ha-card {
@@ -615,10 +616,10 @@ const K = class K extends C {
         box-sizing: border-box;
         color: var(--primary-text-color, #f4f7fb);
         display: grid;
-        gap: 14px;
+        gap: clamp(10px, 2.2vw, 14px);
         min-height: var(--gamma-sonos-height);
         overflow: hidden;
-        padding: 18px;
+        padding: clamp(12px, 3vw, 18px);
         position: relative;
         width: 100%;
       }
@@ -664,7 +665,7 @@ const K = class K extends C {
       }
 
       .name {
-        font-size: 16px;
+        font-size: clamp(14px, 3.4vw, 16px);
         font-weight: 750;
         line-height: 1.1;
         overflow: hidden;
@@ -738,8 +739,8 @@ const K = class K extends C {
           inset 0 1px 0 rgb(255 255 255 / 12%),
           0 14px 28px rgb(0 0 0 / 24%);
         justify-self: center;
-        max-width: 250px;
-        width: 68%;
+        max-width: min(250px, 72%);
+        width: min(250px, 72%);
       }
 
       .metadata {
@@ -749,7 +750,7 @@ const K = class K extends C {
       }
 
       .track {
-        font-size: 22px;
+        font-size: clamp(18px, 4.8vw, 22px);
         font-weight: 800;
         line-height: 1.12;
         overflow: hidden;
@@ -782,8 +783,8 @@ const K = class K extends C {
       }
 
       .icon-button {
-        height: 44px;
-        width: 44px;
+        height: clamp(38px, 9vw, 44px);
+        width: clamp(38px, 9vw, 44px);
       }
 
       .play-button {
@@ -791,8 +792,8 @@ const K = class K extends C {
           radial-gradient(circle, color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent), transparent 74%),
           rgb(255 255 255 / 8%);
         box-shadow: 0 0 24px color-mix(in srgb, var(--gamma-sonos-accent) 18%, transparent);
-        height: 58px;
-        width: 58px;
+        height: clamp(50px, 12vw, 58px);
+        width: clamp(50px, 12vw, 58px);
       }
 
       ha-icon {
@@ -835,7 +836,7 @@ const K = class K extends C {
       .group-row {
         display: grid;
         gap: 8px;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       }
 
       .group-chip {
@@ -888,7 +889,7 @@ const K = class K extends C {
       .group-actions {
         display: grid;
         gap: 8px;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       }
 
       .speaker-list {
@@ -905,7 +906,7 @@ const K = class K extends C {
       }
 
       .speaker-name {
-        flex: 0 0 112px;
+        flex: 0 0 min(112px, 36%);
         font-size: 12px;
         font-weight: 750;
         min-width: 0;
@@ -1006,16 +1007,29 @@ const K = class K extends C {
   }
   setConfig(t) {
     var e, s;
-    this.config = { ...f, ...t }, this.selectedEntityId = this.config.entity || ((e = this.config.entities) == null ? void 0 : e[0]) || ((s = this.config.music_assistant_entities) == null ? void 0 : s[0]) || "", this.style.setProperty("--gamma-sonos-width", this.config.width ?? f.width), this.style.setProperty("--gamma-sonos-height", this.config.height ?? f.height), this.style.setProperty(
+    this.config = { ...m, ...t }, this.selectedEntityId = this.config.entity || ((e = this.config.entities) == null ? void 0 : e[0]) || ((s = this.config.music_assistant_entities) == null ? void 0 : s[0]) || "", this.style.setProperty(
+      "--gamma-sonos-width",
+      this.config.fill_container ? "100%" : this.config.width ?? m.width
+    ), this.style.setProperty("--gamma-sonos-height", this.config.height ?? m.height), this.style.setProperty(
       "--gamma-sonos-background",
-      this.config.background ?? f.background
+      this.config.background ?? m.background
     ), this.style.setProperty(
       "--gamma-sonos-accent",
-      this.config.accent_color ?? f.accent_color
+      this.config.accent_color ?? m.accent_color
     );
   }
   getCardSize() {
     return 8;
+  }
+  getGridOptions() {
+    return {
+      rows: 7,
+      columns: 6,
+      min_rows: 5,
+      max_rows: 12,
+      min_columns: 4,
+      max_columns: 12
+    };
   }
   get allPlayers() {
     var e;
@@ -1132,7 +1146,8 @@ const K = class K extends C {
           config_entry_id: this.config.music_assistant_config_entry_id,
           name: t,
           media_type: ["track", "album", "artist", "playlist"],
-          limit: N(this.config.search_limit, f.search_limit)
+          limit: N(this.config.search_limit, m.search_limit),
+          library_only: !!(this.config.library_only ?? m.library_only)
         },
         return_response: !0
       });
@@ -1153,7 +1168,7 @@ const K = class K extends C {
           media_type: n === "tracks" ? "track" : n.slice(0, -1)
         });
       });
-    }), a.slice(0, N(this.config.search_limit, f.search_limit));
+    }), a.slice(0, N(this.config.search_limit, m.search_limit));
   }
   playSearchResult(t) {
     const e = t.uri || t.name;
@@ -1161,15 +1176,15 @@ const K = class K extends C {
       entity_id: this.activeEntityId,
       media_id: e,
       media_type: t.media_type || t.type,
-      enqueue: this.config.enqueue_mode ?? f.enqueue_mode
+      enqueue: this.config.enqueue_mode ?? m.enqueue_mode
     });
   }
   renderRooms() {
     const t = this.allPlayers;
-    return t.length < 2 ? l : p`
+    return t.length < 2 ? l : u`
       <div class="rooms" aria-label="Players">
         ${t.map(
-      (e) => p`
+      (e) => u`
             <button
               class="room ${e.entity_id === this.activeEntityId ? "active" : ""}"
               @click=${() => {
@@ -1186,13 +1201,13 @@ const K = class K extends C {
     `;
   }
   renderGrouping() {
-    return !this.config.show_grouping || this.allPlayers.length < 2 ? l : p`
+    return !this.config.show_grouping || this.allPlayers.length < 2 ? l : u`
       <section class="grouping">
         <span class="section-title">Select Speakers To Group With ${this.activeName}</span>
         <div class="group-row">
           ${this.allPlayers.map((t) => {
       const e = this.selectedGroupIds.includes(t.entity_id) || this.groupMembers.includes(t.entity_id), s = t.entity_id === this.activeEntityId;
-      return p`
+      return u`
               <button
                 class="group-chip ${e ? "active" : ""}"
                 ?disabled=${s}
@@ -1229,7 +1244,7 @@ const K = class K extends C {
     `;
   }
   renderTabs() {
-    return p`
+    return u`
       <div class="tabs" aria-label="Player panels">
         <button
           class=${this.activeTab === "search" ? "active" : ""}
@@ -1251,7 +1266,7 @@ const K = class K extends C {
     `;
   }
   renderSearch() {
-    return this.config.show_search ? p`
+    return this.config.show_search ? u`
       <section class="search">
         <span class="section-title">Music Assistant Search</span>
         <div class="search-row">
@@ -1275,22 +1290,22 @@ const K = class K extends C {
             <ha-icon .icon=${"mdi:magnify"}></ha-icon>
           </button>
         </div>
-        ${this.searchError ? p`<div class="error">${this.searchError}</div>` : l}
-        ${this.searching ? p`<div class="hint">Searching...</div>` : l}
+        ${this.searchError ? u`<div class="error">${this.searchError}</div>` : l}
+        ${this.searching ? u`<div class="hint">Searching...</div>` : l}
         ${this.searchResults.length > 0 ? this.renderResults() : l}
-        ${this.config.show_queue_hint ? p`<div class="hint">Tap a result to add it next with Music Assistant.</div>` : l}
+        ${this.config.show_queue_hint ? u`<div class="hint">Tap a result to add it next with Music Assistant.</div>` : l}
       </section>
     ` : l;
   }
   renderSpeakers() {
-    return p`
+    return u`
       <section class="speakers">
         ${this.renderGrouping()}
         <span class="section-title">Speaker Volume</span>
         <div class="speaker-list">
           ${this.allPlayers.map((t) => {
       const e = O(t), s = Math.round(N(t.attributes.volume_level, 0) * 100);
-      return p`
+      return u`
               <div class="speaker-row">
                 <span class="speaker-name">
                   ${t.attributes.friendly_name ?? H(t.entity_id.split(".")[1])}
@@ -1322,12 +1337,12 @@ const K = class K extends C {
     `;
   }
   renderResults() {
-    return p`
+    return u`
       <div class="results">
         ${this.searchResults.map((t) => {
       var s, i;
       const e = t.artist || ((s = t.artists) == null ? void 0 : s.map((a) => a.name).filter(Boolean).join(", ")) || ((i = t.album) == null ? void 0 : i.name) || t.media_type || t.type || "";
-      return p`
+      return u`
             <div class="result">
               <div class="result-main">
                 <span class="result-name">${t.name ?? t.uri ?? "Untitled"}</span>
@@ -1342,9 +1357,9 @@ const K = class K extends C {
   }
   render() {
     if (!this.config)
-      return p``;
+      return u``;
     const t = this.activePlayer, e = O(t), s = this.artworkUrl ? `url("${this.artworkUrl}")` : "none", i = (t == null ? void 0 : t.attributes.media_title) || "No music selected", a = (t == null ? void 0 : t.attributes.media_artist) || (t == null ? void 0 : t.attributes.media_album_name) || (t == null ? void 0 : t.attributes.source) || "Ready";
-    return p`
+    return u`
       <ha-card>
         <div
           class="player"
