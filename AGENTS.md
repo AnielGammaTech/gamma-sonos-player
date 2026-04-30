@@ -33,9 +33,9 @@ type: custom:gamma-sonos-player-card
 
 ## Home Assistant And Music Assistant Contract
 
-### Required For Search
+### Search Instance ID
 
-`music_assistant.search` requires a `config_entry_id`. The card option is:
+`music_assistant.search` can use a `config_entry_id`. Some Home Assistant/Music Assistant setups work without it when there is a single instance, but setting it is more reliable. The card option is:
 
 ```yaml
 music_assistant_config_entry_id: 01JEXNDHT21V0BHJXM7A5SZANV
@@ -49,7 +49,7 @@ Users can find it in Home Assistant:
 4. Switch to YAML mode.
 5. Copy `config_entry_id`.
 
-If search fails, check that this option exists before changing service code.
+If search fails, check whether this option exists before changing service code.
 
 ### Music Assistant Search
 
@@ -61,9 +61,7 @@ hass.callWS({
   domain: 'music_assistant',
   service: 'search',
   service_data: {
-    config_entry_id,
     name,
-    media_type: ['track', 'album', 'artist', 'playlist'],
     library_only: config.library_only ?? false,
     limit,
   },
@@ -71,7 +69,17 @@ hass.callWS({
 });
 ```
 
-The card extracts `tracks`, `albums`, `artists`, and `playlists` from the response. Keep extraction defensive because response shapes can vary between Music Assistant versions.
+Add `config_entry_id` to `service_data` only when `music_assistant_config_entry_id` is configured. Add `media_type` only when `search_media_types` is configured; the default search payload intentionally mirrors the HA action UI:
+
+```yaml
+action: music_assistant.search
+data:
+  name: Bad Bunny
+  limit: 5
+  library_only: false
+```
+
+The card extracts `tracks`, `albums`, `artists`, `playlists`, `radio`, and `podcasts` from the response. Keep extraction defensive because response shapes can vary between Music Assistant versions.
 
 ### Music Assistant Playback
 

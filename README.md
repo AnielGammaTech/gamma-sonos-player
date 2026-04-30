@@ -28,12 +28,12 @@ entities:
   - media_player.bedroom
 music_assistant_entities:
   - media_player.lanai_music_assistant
-music_assistant_config_entry_id: 01JEXNDHT21V0BHJXM7A5SZANV
+music_assistant_config_entry_id: 01KQ7Z56D6PXQ6XT234VS65HGS
 enqueue_mode: next
 library_only: false
 ```
 
-To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools > Actions, choose `music_assistant.search`, select your Music Assistant instance from the dropdown, switch the action editor to YAML, and copy the generated `config_entry_id`.
+To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools > Actions, choose `music_assistant.search`, select your Music Assistant instance from the dropdown, switch the action editor to YAML, and copy the generated `config_entry_id`. If you only have one Music Assistant instance, search may work without it, but setting it is more reliable.
 
 ## What Works In This First Build
 
@@ -51,7 +51,7 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 | `entity` | `string` | First configured player | Initial selected player. |
 | `entities` | `string[]` | Auto-discovered Sonos/MA players | Sonos/media players shown in room and grouping controls. |
 | `music_assistant_entities` | `string[]` | `[]` | Optional MA-specific players. |
-| `music_assistant_config_entry_id` | `string` | Required for search | Music Assistant integration instance ID used by `music_assistant.search`. |
+| `music_assistant_config_entry_id` | `string` | Optional | Music Assistant integration instance ID used by `music_assistant.search`. Recommended when available. |
 | `name` | `string` | Selected player name | Card title. |
 | `enqueue_mode` | `string` | `next` | Passed to Music Assistant playback. |
 | `search_limit` | `number` | `8` | Music Assistant search result limit. |

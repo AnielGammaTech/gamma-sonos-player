@@ -43,6 +43,11 @@ type HomeAssistant = {
   callWS?: <T = unknown>(message: Record<string, unknown>) => Promise<T>;
 };
 
+type ConfigElement = HTMLInputElement & {
+  checked?: boolean;
+  configValue?: keyof GammaSonosPlayerConfig;
+};
+
 interface GammaSonosPlayerConfig {
   type?: string;
   entities?: string[];
@@ -56,6 +61,7 @@ interface GammaSonosPlayerConfig {
   enqueue_mode?: EnqueueMode;
   search_limit?: number;
   library_only?: boolean;
+  search_media_types?: MediaType[];
   show_grouping?: boolean;
   show_search?: boolean;
   show_queue_hint?: boolean;
@@ -70,7 +76,7 @@ type SearchItem = {
   type?: MediaType;
   artists?: Array<{ name?: string }>;
   artist?: string;
-  album?: { name?: string };
+  album?: { name?: string; image?: string };
   image?: string;
   thumb?: string;
 };
@@ -123,6 +129,19 @@ function titleCase(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function fireConfigChanged(
+  element: HTMLElement,
+  config: Partial<GammaSonosPlayerConfig>,
+): void {
+  element.dispatchEvent(
+    new CustomEvent('config-changed', {
+      detail: { config },
+      bubbles: true,
+      composed: true,
+    }),
+  );
+}
+
 export class GammaSonosPlayerCard extends LitElement {
   static properties = {
     hass: { attribute: false },
@@ -155,7 +174,10 @@ export class GammaSonosPlayerCard extends LitElement {
         --gamma-sonos-accent: #39d98a;
 
         display: block;
+        box-sizing: border-box;
         width: var(--gamma-sonos-width);
+        max-width: 100%;
+        min-width: 0;
       }
 
       ha-card {
@@ -188,6 +210,8 @@ export class GammaSonosPlayerCard extends LitElement {
         padding: clamp(12px, 3vw, 18px);
         position: relative;
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
       }
 
       .player::before {
@@ -217,6 +241,7 @@ export class GammaSonosPlayerCard extends LitElement {
       .speaker-row {
         align-items: center;
         display: flex;
+        min-width: 0;
       }
 
       .topbar {
@@ -255,7 +280,9 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .rooms {
         gap: 4px;
+        max-width: 100%;
         overflow-x: auto;
+        scrollbar-width: thin;
       }
 
       .room,
@@ -281,6 +308,10 @@ export class GammaSonosPlayerCard extends LitElement {
         min-height: 28px;
         padding: 0 10px;
         white-space: nowrap;
+      }
+
+      .room {
+        flex: 0 0 auto;
       }
 
       .room.active,
@@ -372,11 +403,13 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .volume-row {
         gap: 10px;
+        min-width: 0;
       }
 
       input[type='range'] {
         accent-color: var(--gamma-sonos-accent);
         flex: 1;
+        min-width: 0;
       }
 
       .tabs {
@@ -487,6 +520,7 @@ export class GammaSonosPlayerCard extends LitElement {
         border-radius: 14px;
         gap: 8px;
         padding: 8px;
+        min-width: 0;
       }
 
       input[type='search'] {
@@ -513,6 +547,19 @@ export class GammaSonosPlayerCard extends LitElement {
         gap: 10px;
         min-width: 0;
         padding: 8px;
+      }
+
+      .result-art {
+        background:
+          radial-gradient(circle, rgb(255 255 255 / 9%), transparent 68%),
+          rgb(255 255 255 / 6%);
+        background-position: center;
+        background-size: cover;
+        border: 1px solid rgb(255 255 255 / 8%);
+        border-radius: 8px;
+        flex: 0 0 auto;
+        height: 42px;
+        width: 42px;
       }
 
       .result-main {
@@ -571,6 +618,10 @@ export class GammaSonosPlayerCard extends LitElement {
     return {
       entities: entities.filter((entity) => entity.startsWith('media_player.')),
     };
+  }
+
+  public static async getConfigElement(): Promise<HTMLElement> {
+    return document.createElement('gamma-sonos-player-card-editor');
   }
 
   public setConfig(config: GammaSonosPlayerConfig): void {
@@ -767,22 +818,25 @@ export class GammaSonosPlayerCard extends LitElement {
     this.searchError = '';
 
     try {
-      if (!this.config.music_assistant_config_entry_id) {
-        this.searchError = 'Add music_assistant_config_entry_id to this card config.';
-        return;
+      const serviceData: Record<string, unknown> = {
+        name,
+        limit: toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit),
+        library_only: Boolean(this.config.library_only ?? DEFAULT_CONFIG.library_only),
+      };
+
+      if (this.config.music_assistant_config_entry_id) {
+        serviceData.config_entry_id = this.config.music_assistant_config_entry_id;
+      }
+
+      if (this.config.search_media_types?.length) {
+        serviceData.media_type = this.config.search_media_types;
       }
 
       const response = await this.hass.callWS<Record<string, unknown>>({
         type: 'call_service',
         domain: 'music_assistant',
         service: 'search',
-        service_data: {
-          config_entry_id: this.config.music_assistant_config_entry_id,
-          name,
-          media_type: ['track', 'album', 'artist', 'playlist'],
-          limit: toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit),
-          library_only: Boolean(this.config.library_only ?? DEFAULT_CONFIG.library_only),
-        },
+        service_data: serviceData,
         return_response: true,
       });
       this.searchResults = this.extractSearchResults(response);
@@ -796,7 +850,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private extractSearchResults(response: Record<string, unknown>): SearchItem[] {
     const serviceResponse = response.response as Record<string, unknown> | undefined;
     const source = serviceResponse ?? response;
-    const buckets = ['tracks', 'albums', 'artists', 'playlists'];
+    const buckets = ['tracks', 'albums', 'artists', 'playlists', 'radio', 'podcasts'];
     const items: SearchItem[] = [];
 
     buckets.forEach((bucket) => {
@@ -1028,9 +1082,14 @@ export class GammaSonosPlayerCard extends LitElement {
             item.media_type ||
             item.type ||
             '';
+          const image = item.image || item.thumb || item.album?.image || '';
 
           return html`
             <div class="result">
+              <div
+                class="result-art"
+                style=${image ? `background-image: url("${image}")` : ''}
+              ></div>
               <div class="result-main">
                 <span class="result-name">${item.name ?? item.uri ?? 'Untitled'}</span>
                 <span class="result-sub">${artist}</span>
@@ -1116,9 +1175,232 @@ if (!customElements.get('gamma-sonos-player-card')) {
   customElements.define('gamma-sonos-player-card', GammaSonosPlayerCard);
 }
 
+class GammaSonosPlayerCardEditor extends LitElement {
+  static properties = {
+    hass: { attribute: false },
+    config: { state: true },
+  };
+
+  public hass?: HomeAssistant;
+  private config: Partial<GammaSonosPlayerConfig> = {};
+
+  static get styles(): CSSResultGroup {
+    return css`
+      .editor {
+        display: grid;
+        gap: 14px;
+      }
+
+      .section {
+        background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+        border: 1px solid color-mix(in srgb, var(--divider-color) 72%, transparent);
+        border-radius: 10px;
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      }
+
+      .switch-row {
+        align-items: center;
+        color: var(--primary-text-color);
+        display: inline-flex;
+        gap: 8px;
+        min-height: 34px;
+      }
+
+      ha-selector,
+      ha-textfield,
+      ha-select {
+        width: 100%;
+      }
+
+      h3 {
+        color: var(--primary-text-color);
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0;
+        margin: 0;
+      }
+    `;
+  }
+
+  public setConfig(config: GammaSonosPlayerConfig): void {
+    this.config = { ...config };
+  }
+
+  private updateConfig(patch: Partial<GammaSonosPlayerConfig>): void {
+    const next = { ...this.config, ...patch };
+    Object.keys(next).forEach((key) => {
+      const typedKey = key as keyof GammaSonosPlayerConfig;
+      if (next[typedKey] === '') {
+        delete next[typedKey];
+      }
+    });
+    this.config = next;
+    fireConfigChanged(this, next);
+  }
+
+  private valueChanged(event: Event): void {
+    const target = event.target as ConfigElement;
+    const customEvent = event as CustomEvent<{ value?: unknown }>;
+
+    if (!target.configValue) {
+      return;
+    }
+
+    this.updateConfig({
+      [target.configValue]:
+        target.checked !== undefined
+          ? target.checked
+          : customEvent.detail?.value ?? target.value,
+    } as Partial<GammaSonosPlayerConfig>);
+  }
+
+  private renderEntityPicker(
+    label: string,
+    key: keyof GammaSonosPlayerConfig,
+    multiple = false,
+  ): TemplateResult {
+    return html`
+      <ha-selector
+        .hass=${this.hass}
+        .label=${label}
+        .selector=${{ entity: { domain: 'media_player', multiple } }}
+        .value=${this.config[key] ?? (multiple ? [] : '')}
+        .configValue=${key}
+        @value-changed=${this.valueChanged}
+      ></ha-selector>
+    `;
+  }
+
+  private renderTextInput(
+    label: string,
+    key: keyof GammaSonosPlayerConfig,
+    placeholder = '',
+  ): TemplateResult {
+    return html`
+      <ha-textfield
+        .label=${label}
+        .placeholder=${placeholder}
+        .value=${this.config[key] ?? ''}
+        .configValue=${key}
+        @input=${this.valueChanged}
+      ></ha-textfield>
+    `;
+  }
+
+  private renderNumberInput(
+    label: string,
+    key: keyof GammaSonosPlayerConfig,
+    placeholder = '',
+  ): TemplateResult {
+    return html`
+      <ha-textfield
+        type="number"
+        .label=${label}
+        .placeholder=${placeholder}
+        .value=${this.config[key] ?? ''}
+        .configValue=${key}
+        @input=${this.valueChanged}
+      ></ha-textfield>
+    `;
+  }
+
+  private renderSwitch(
+    label: string,
+    key: keyof GammaSonosPlayerConfig,
+    defaultValue: boolean,
+  ): TemplateResult {
+    return html`
+      <label class="switch-row">
+        <ha-switch
+          .checked=${Boolean(this.config[key] ?? defaultValue)}
+          .configValue=${key}
+          @change=${this.valueChanged}
+        ></ha-switch>
+        <span>${label}</span>
+      </label>
+    `;
+  }
+
+  private renderSelect(
+    label: string,
+    key: keyof GammaSonosPlayerConfig,
+    options: string[],
+    value: string,
+  ): TemplateResult {
+    return html`
+      <ha-select
+        .label=${label}
+        .value=${this.config[key] ?? value}
+        .configValue=${key}
+        @selected=${this.valueChanged}
+        @closed=${(event: Event) => event.stopPropagation()}
+        fixedMenuPosition
+        naturalMenuWidth
+      >
+        ${options.map(
+          (option) => html`
+            <mwc-list-item .value=${option}>${option}</mwc-list-item>
+          `,
+        )}
+      </ha-select>
+    `;
+  }
+
+  protected render(): TemplateResult {
+    return html`
+      <div class="editor">
+        <section class="section">
+          <h3>Main</h3>
+          ${this.renderEntityPicker('Initial Player', 'entity')}
+          ${this.renderEntityPicker('Players', 'entities', true)}
+          <div class="grid">
+            ${this.renderTextInput('Name', 'name', 'Music')}
+            ${this.renderTextInput(
+              'Music Assistant Config Entry ID',
+              'music_assistant_config_entry_id',
+              '01KQ...',
+            )}
+            ${this.renderSelect('Enqueue Mode', 'enqueue_mode', ['next', 'play', 'replace', 'replace_next', 'add'], 'next')}
+            ${this.renderNumberInput('Search Limit', 'search_limit', '8')}
+          </div>
+        </section>
+
+        <section class="section">
+          <h3>Layout</h3>
+          <div class="grid">
+            ${this.renderTextInput('Width', 'width', '100%')}
+            ${this.renderTextInput('Height', 'height', 'auto')}
+            ${this.renderTextInput('Background', 'background', '#101722')}
+            ${this.renderTextInput('Accent Color', 'accent_color', '#39d98a')}
+          </div>
+          <div class="grid">
+            ${this.renderSwitch('Fill Container', 'fill_container', true)}
+            ${this.renderSwitch('Show Search', 'show_search', true)}
+            ${this.renderSwitch('Show Grouping', 'show_grouping', true)}
+            ${this.renderSwitch('Library Only', 'library_only', false)}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+}
+
+if (!customElements.get('gamma-sonos-player-card-editor')) {
+  customElements.define('gamma-sonos-player-card-editor', GammaSonosPlayerCardEditor);
+}
+
 declare global {
   interface HTMLElementTagNameMap {
     'gamma-sonos-player-card': GammaSonosPlayerCard;
+    'gamma-sonos-player-card-editor': GammaSonosPlayerCardEditor;
   }
 
   interface Window {
