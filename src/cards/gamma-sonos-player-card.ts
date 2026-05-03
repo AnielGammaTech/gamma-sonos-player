@@ -182,6 +182,7 @@ export class GammaSonosPlayerCard extends LitElement {
     query: { state: true },
     searching: { state: true },
     searchError: { state: true },
+    playbackError: { state: true },
     searchResults: { state: true },
     selectedGroupIds: { state: true },
     playbackPending: { state: true },
@@ -199,6 +200,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private query = '';
   private searching = false;
   private searchError = '';
+  private playbackError = '';
   private searchResults: SearchItem[] = [];
   private selectedGroupIds: string[] = [];
   private playbackPending = false;
@@ -984,6 +986,43 @@ export class GammaSonosPlayerCard extends LitElement {
     };
   }
 
+  private get mediaPlayers(): HassEntity[] {
+    return Object.values(this.hass?.states ?? {})
+      .filter((entity): entity is HassEntity => Boolean(entity))
+      .filter((entity) => entity.entity_id.startsWith('media_player.'));
+  }
+
+  private isDiscoverablePlayer(entity: HassEntity): boolean {
+    const platform = String(entity.attributes.platform ?? '').toLowerCase();
+    const deviceClass = String(entity.attributes.device_class ?? '').toLowerCase();
+    const icon = String(entity.attributes.icon ?? '').toLowerCase();
+    const source = String(entity.attributes.source ?? '').toLowerCase();
+
+    return (
+      deviceClass === 'speaker' ||
+      icon.includes('speaker') ||
+      source.includes('music assistant') ||
+      entity.attributes.mass_player_type === 'player' ||
+      platform.includes('sonos') ||
+      platform.includes('music_assistant') ||
+      entity.entity_id.includes('sonos') ||
+      entity.entity_id.includes('music_assistant')
+    );
+  }
+
+  private dedupePlayers(players: HassEntity[]): HassEntity[] {
+    const seen = new Set<string>();
+
+    return players.filter((player) => {
+      if (seen.has(player.entity_id)) {
+        return false;
+      }
+
+      seen.add(player.entity_id);
+      return true;
+    });
+  }
+
   private get allPlayers(): HassEntity[] {
     const configured = [
       ...(this.config.entities ?? []),
@@ -991,30 +1030,17 @@ export class GammaSonosPlayerCard extends LitElement {
     ];
 
     if (configured.length > 0) {
-      return configured
+      const configuredPlayers = configured
         .map((entityId) => this.hass?.states[entityId])
         .filter((entity): entity is HassEntity => Boolean(entity));
+      const musicAssistantMatches = configuredPlayers
+        .map((player) => this.matchingMusicAssistantPlayer(player))
+        .filter((player): player is HassEntity => Boolean(player));
+
+      return this.dedupePlayers([...configuredPlayers, ...musicAssistantMatches]);
     }
 
-    return Object.values(this.hass?.states ?? {})
-      .filter((entity): entity is HassEntity => Boolean(entity))
-      .filter((entity) => entity.entity_id.startsWith('media_player.'))
-      .filter((entity) => {
-        const platform = String(entity.attributes.platform ?? '').toLowerCase();
-        const deviceClass = String(entity.attributes.device_class ?? '').toLowerCase();
-        const icon = String(entity.attributes.icon ?? '').toLowerCase();
-        const source = String(entity.attributes.source ?? '').toLowerCase();
-        return (
-          deviceClass === 'speaker' ||
-          icon.includes('speaker') ||
-          source.includes('music assistant') ||
-          entity.attributes.mass_player_type === 'player' ||
-          platform.includes('sonos') ||
-          platform.includes('music_assistant') ||
-          entity.entity_id.includes('sonos') ||
-          entity.entity_id.includes('music_assistant')
-        );
-      });
+    return this.mediaPlayers.filter((entity) => this.isDiscoverablePlayer(entity));
   }
 
   private get activePlayer(): HassEntity | undefined {
@@ -1108,8 +1134,8 @@ export class GammaSonosPlayerCard extends LitElement {
     const friendlyName = String(entity.attributes.friendly_name ?? '').trim().toLowerCase();
 
     return (
-      this.allPlayers.find((player) => player.entity_id === likelyEntityId && isMusicAssistantPlayer(player)) ??
-      this.allPlayers.find((player) => (
+      this.mediaPlayers.find((player) => player.entity_id === likelyEntityId && isMusicAssistantPlayer(player)) ??
+      this.mediaPlayers.find((player) => (
         isMusicAssistantPlayer(player) &&
         String(player.attributes.friendly_name ?? '').trim().toLowerCase() === friendlyName
       ))
@@ -1178,6 +1204,15 @@ export class GammaSonosPlayerCard extends LitElement {
       {},
       this.isPlaying ? this.playbackEntityId : this.activeEntityId,
     );
+  }
+
+  private transportService(service: 'media_previous_track' | 'media_next_track'): void {
+    const targetPlayer =
+      this.matchingMusicAssistantPlayer(this.playbackPlayer) ??
+      this.playbackPlayer ??
+      this.activePlayer;
+
+    this.mediaService(service, {}, targetPlayer?.entity_id ?? this.playbackEntityId);
   }
 
   private setVolume(value: string): void {
@@ -1419,6 +1454,7 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
+    this.playbackError = '';
     const mediaId = item.uri || item.name;
 
     if (!mediaId) {
@@ -1431,6 +1467,11 @@ export class GammaSonosPlayerCard extends LitElement {
     const targetPlayer = this.matchingMusicAssistantPlayer(this.activePlayer) ?? this.activePlayer;
     const targetEntityId = targetPlayer?.entity_id ?? this.activeEntityId;
 
+    if (!isMusicAssistantPlayer(targetPlayer)) {
+      this.playbackError = 'Pick a Music Assistant speaker for Music Assistant search playback.';
+      return;
+    }
+
     this.playbackPending = true;
     window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, targetEntityId);
     this.selectedEntityId = targetEntityId;
@@ -1442,10 +1483,14 @@ export class GammaSonosPlayerCard extends LitElement {
       entity_id: targetEntityId,
     });
 
-    if (result && typeof result.finally === 'function') {
-      result.finally(() => {
-        this.playbackPending = false;
-      });
+    if (result && typeof result.then === 'function') {
+      result
+        .catch((error: unknown) => {
+          this.playbackError = error instanceof Error ? error.message : 'Music Assistant playback failed.';
+        })
+        .finally(() => {
+          this.playbackPending = false;
+        });
       return;
     }
 
@@ -1522,7 +1567,7 @@ export class GammaSonosPlayerCard extends LitElement {
           <button
             class="icon-button"
             ?disabled=${unavailable}
-            @click=${() => this.mediaService('media_previous_track', {}, this.playbackEntityId)}
+            @click=${() => this.transportService('media_previous_track')}
           >
             <ha-icon .icon=${'mdi:skip-previous'}></ha-icon>
           </button>
@@ -1532,7 +1577,7 @@ export class GammaSonosPlayerCard extends LitElement {
           <button
             class="icon-button"
             ?disabled=${unavailable}
-            @click=${() => this.mediaService('media_next_track', {}, this.playbackEntityId)}
+            @click=${() => this.transportService('media_next_track')}
           >
             <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
           </button>
@@ -1721,7 +1766,7 @@ export class GammaSonosPlayerCard extends LitElement {
           <button
             class="icon-button"
             ?disabled=${unavailable}
-            @click=${() => this.mediaService('media_previous_track', {}, this.playbackEntityId)}
+            @click=${() => this.transportService('media_previous_track')}
           >
             <ha-icon .icon=${'mdi:skip-previous'}></ha-icon>
           </button>
@@ -1731,7 +1776,7 @@ export class GammaSonosPlayerCard extends LitElement {
           <button
             class="icon-button"
             ?disabled=${unavailable}
-            @click=${() => this.mediaService('media_next_track', {}, this.playbackEntityId)}
+            @click=${() => this.transportService('media_next_track')}
           >
             <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
           </button>
@@ -1772,6 +1817,7 @@ export class GammaSonosPlayerCard extends LitElement {
           </button>
         </div>
         ${this.searchError ? html`<div class="error">${this.searchError}</div>` : nothing}
+        ${this.playbackError ? html`<div class="error">${this.playbackError}</div>` : nothing}
         ${this.searching ? html`<div class="hint">Searching...</div>` : nothing}
         ${this.searchResults.length > 0
           ? this.browserView === 'artist'
