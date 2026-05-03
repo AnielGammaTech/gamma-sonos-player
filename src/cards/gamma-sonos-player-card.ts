@@ -144,13 +144,20 @@ function supportsGrouping(entity?: HassEntity): boolean {
 }
 
 function isMusicAssistantPlayer(entity?: HassEntity): boolean {
+  const appId = String(entity?.attributes.app_id ?? '').toLowerCase();
   const platform = String(entity?.attributes.platform ?? '').toLowerCase();
   const source = String(entity?.attributes.source ?? '').toLowerCase();
+  const sourceList = Array.isArray(entity?.attributes.source_list)
+    ? entity.attributes.source_list.join(' ').toLowerCase()
+    : '';
 
   return (
     entity?.attributes.mass_player_type === 'player' ||
+    Boolean(entity?.attributes.active_queue) ||
+    appId.includes('music_assistant') ||
     platform.includes('music_assistant') ||
-    source.includes('music assistant')
+    source.includes('music assistant') ||
+    sourceList.includes('music assistant')
   );
 }
 
@@ -1317,6 +1324,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private continueInSelectedRoom(): void {
     this.groupError = '';
+    this.playbackError = '';
 
     const targetPlayer = this.selectedGroupIds
       .map((id) => this.hass?.states[id])
@@ -1337,12 +1345,33 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
-    this.service('music_assistant', 'transfer_queue', {
+    const result = this.service('music_assistant', 'transfer_queue', {
       source_player: sourceEntityId,
       auto_play: true,
     }, {
       entity_id: targetEntityId,
     });
+
+    if (result && typeof result.then === 'function') {
+      result.catch(() => {
+        const source = sourcePlayer;
+        const mediaId = String(source?.attributes.media_content_id ?? '');
+        const mediaType = String(source?.attributes.media_content_type ?? 'music');
+
+        if (!mediaId) {
+          this.playbackError = 'That queue is not available anymore. Pick a song from search to start this room.';
+          return;
+        }
+
+        this.service('music_assistant', 'play_media', {
+          media_id: mediaId,
+          media_type: mediaType,
+          enqueue: 'play',
+        }, {
+          entity_id: targetEntityId,
+        });
+      });
+    }
   }
 
   private ungroupActive(): void {
@@ -1466,11 +1495,6 @@ export class GammaSonosPlayerCard extends LitElement {
     const enqueue = this.isPlaying || configuredEnqueue !== 'next' ? configuredEnqueue : 'play';
     const targetPlayer = this.matchingMusicAssistantPlayer(this.activePlayer) ?? this.activePlayer;
     const targetEntityId = targetPlayer?.entity_id ?? this.activeEntityId;
-
-    if (!isMusicAssistantPlayer(targetPlayer)) {
-      this.playbackError = 'Pick a Music Assistant speaker for Music Assistant search playback.';
-      return;
-    }
 
     this.playbackPending = true;
     window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, targetEntityId);
