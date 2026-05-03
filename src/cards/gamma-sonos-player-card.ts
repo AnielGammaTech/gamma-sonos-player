@@ -192,6 +192,7 @@ export class GammaSonosPlayerCard extends LitElement {
     playbackError: { state: true },
     searchResults: { state: true },
     selectedGroupIds: { state: true },
+    pendingGroupIds: { state: true },
     playbackPending: { state: true },
     browserView: { state: true },
     selectedArtist: { state: true },
@@ -210,6 +211,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private playbackError = '';
   private searchResults: SearchItem[] = [];
   private selectedGroupIds: string[] = [];
+  private pendingGroupIds: string[] = [];
   private playbackPending = false;
   private browserView: BrowserView = 'results';
   private selectedArtist?: SearchItem;
@@ -1053,7 +1055,6 @@ export class GammaSonosPlayerCard extends LitElement {
   private get activePlayer(): HassEntity | undefined {
     return (
       this.hass?.states[this.selectedEntityId] ??
-      this.allPlayers.find((player) => player.state === 'playing') ??
       this.allPlayers[0]
     );
   }
@@ -1075,7 +1076,7 @@ export class GammaSonosPlayerCard extends LitElement {
       return groupedPlaying;
     }
 
-    return this.allPlayers.find((player) => player.state === 'playing') ?? this.activePlayer;
+    return this.activePlayer;
   }
 
   private get playbackEntityId(): string {
@@ -1113,16 +1114,24 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get groupablePlayers(): HassEntity[] {
+    const activeIsMusicAssistant = isMusicAssistantPlayer(this.activePlayer);
     const seen = new Set<string>();
 
     return this.allPlayers.filter((player) => {
-      const canGroup = supportsGrouping(player) || isMusicAssistantPlayer(player);
+      const musicAssistantMatch = this.matchingMusicAssistantPlayer(player);
+      const canGroup =
+        supportsGrouping(player) ||
+        isMusicAssistantPlayer(player) ||
+        Boolean(musicAssistantMatch);
+      const playerKey = activeIsMusicAssistant && musicAssistantMatch
+        ? musicAssistantMatch.entity_id
+        : player.entity_id;
 
-      if (!canGroup || seen.has(player.entity_id)) {
+      if (!canGroup || seen.has(playerKey)) {
         return false;
       }
 
-      seen.add(player.entity_id);
+      seen.add(playerKey);
       return true;
     });
   }
@@ -1166,11 +1175,11 @@ export class GammaSonosPlayerCard extends LitElement {
       .map((player) => this.matchingMusicAssistantPlayer(player))
       .filter((player): player is HassEntity => Boolean(player));
 
-    if (!resolvedAnchor || resolvedMembers.length !== selectedPlayers.length) {
+    if (!resolvedAnchor) {
       return {
         anchor,
         members: [],
-        error: 'Mixed speaker groups need the Music Assistant version of each room in this card.',
+        error: `Use the Music Assistant version of ${anchor.attributes.friendly_name ?? anchor.entity_id} as the main speaker for mixed groups.`,
       };
     }
 
@@ -1259,12 +1268,12 @@ export class GammaSonosPlayerCard extends LitElement {
   private toggleGroupSelection(entityId: string): void {
     this.groupError = '';
 
-    if (this.selectedGroupIds.includes(entityId)) {
-      this.selectedGroupIds = this.selectedGroupIds.filter((id) => id !== entityId);
+    if (this.pendingGroupIds.includes(entityId)) {
+      this.pendingGroupIds = this.pendingGroupIds.filter((id) => id !== entityId);
       return;
     }
 
-    this.selectedGroupIds = [...this.selectedGroupIds, entityId];
+    this.pendingGroupIds = [...this.pendingGroupIds, entityId];
   }
 
   private groupSelected(): void {
@@ -1272,14 +1281,13 @@ export class GammaSonosPlayerCard extends LitElement {
 
     if (
       !this.activeEntityId ||
-      !this.groupablePlayers.some((player) => player.entity_id === this.activeEntityId) ||
-      this.selectedGroupIds.length === 0
+      this.pendingGroupIds.length === 0
     ) {
       return;
     }
 
     const activePlayer = this.activePlayer;
-    const selectedPlayers = this.selectedGroupIds
+    const selectedPlayers = this.pendingGroupIds
       .filter((id) => id !== this.activeEntityId)
       .map((id) => this.hass?.states[id])
       .filter((player): player is HassEntity => {
@@ -1319,6 +1327,8 @@ export class GammaSonosPlayerCard extends LitElement {
     });
 
     this.selectedEntityId = resolved.anchor.entity_id;
+    this.selectedGroupIds = [resolved.anchor.entity_id, ...groupMembers];
+    this.pendingGroupIds = [];
     window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, resolved.anchor.entity_id);
   }
 
@@ -1377,6 +1387,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private ungroupActive(): void {
     this.mediaService('unjoin');
     this.selectedGroupIds = [];
+    this.pendingGroupIds = [];
   }
 
   private ungroupAll(): void {
@@ -1384,11 +1395,13 @@ export class GammaSonosPlayerCard extends LitElement {
       this.mediaService('unjoin', {}, entityId);
     });
     this.selectedGroupIds = [];
+    this.pendingGroupIds = [];
   }
 
   private removeFromGroup(entityId: string): void {
     this.mediaService('unjoin', {}, entityId);
     this.selectedGroupIds = this.selectedGroupIds.filter((id) => id !== entityId);
+    this.pendingGroupIds = this.pendingGroupIds.filter((id) => id !== entityId);
   }
 
   private async searchMusicAssistant(preserveArtist = false): Promise<void> {
@@ -1532,8 +1545,16 @@ export class GammaSonosPlayerCard extends LitElement {
 
     const playingMembers = this.groupMembers
       .map((entityId) => this.hass?.states[entityId])
-      .filter((player): player is HassEntity => Boolean(player));
-    const nowPlaying = playingMembers.length > 0 ? playingMembers : [this.activePlayer].filter(Boolean) as HassEntity[];
+      .filter((player): player is HassEntity => {
+        if (!player) {
+          return false;
+        }
+
+        return player.state === 'playing';
+      });
+    const nowPlaying = playingMembers.length > 0
+      ? playingMembers
+      : [this.activePlayer].filter((player): player is HassEntity => Boolean(player));
 
     return html`
       <div class="rooms">
@@ -1559,6 +1580,7 @@ export class GammaSonosPlayerCard extends LitElement {
                 window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, entityId);
                 const members = player?.attributes.group_members;
                 this.selectedGroupIds = Array.isArray(members) ? [...members] : [entityId];
+                this.pendingGroupIds = [];
               }}
             >
               ${players.map(
@@ -1617,10 +1639,10 @@ export class GammaSonosPlayerCard extends LitElement {
       return nothing;
     }
 
-    const activeCanGroup = groupablePlayers.some(
-      (player) => player.entity_id === this.activeEntityId,
-    );
-    const selectedCount = this.selectedGroupIds.filter((id) => {
+    const activeCanGroup =
+      groupablePlayers.some((player) => player.entity_id === this.activeEntityId) ||
+      Boolean(this.matchingMusicAssistantPlayer(this.activePlayer));
+    const pendingCount = this.pendingGroupIds.filter((id) => {
       const player = this.hass?.states[id];
       return (
         id !== this.activeEntityId &&
@@ -1637,9 +1659,11 @@ export class GammaSonosPlayerCard extends LitElement {
         ${this.groupError ? html`<div class="error">${this.groupError}</div>` : nothing}
         <div class="group-row">
           ${groupablePlayers.map((player) => {
-            const selected =
+            const inGroup =
               this.selectedGroupIds.includes(player.entity_id) ||
               this.groupMembers.includes(player.entity_id);
+            const pending = this.pendingGroupIds.includes(player.entity_id);
+            const selected = inGroup || pending;
             const isAnchor = player.entity_id === this.activeEntityId;
 
             return html`
@@ -1652,7 +1676,7 @@ export class GammaSonosPlayerCard extends LitElement {
                 <span class="group-name">
                   ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
                 </span>
-                <span class="group-status">${isAnchor ? 'Main speaker' : selected ? 'Selected' : 'Tap to select'}</span>
+                <span class="group-status">${isAnchor ? 'Main speaker' : inGroup ? 'In group' : pending ? 'Selected' : 'Tap to select'}</span>
               </button>
             `;
           })}
@@ -1669,13 +1693,13 @@ export class GammaSonosPlayerCard extends LitElement {
           </button>
           <button
             class="group-chip active"
-            ?disabled=${!activeCanGroup || selectedCount === 0}
+            ?disabled=${!activeCanGroup || pendingCount === 0}
             @click=${this.groupSelected}
           >
             <span class="group-check">+</span>
             <span class="group-name">
               ${activeCanGroup
-                ? `Group ${selectedCount} Speakers`
+                ? `Group ${pendingCount} Speakers`
                 : 'Selected Speaker Cannot Group'}
             </span>
             <span class="group-status">
