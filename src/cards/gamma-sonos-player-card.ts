@@ -3,7 +3,7 @@ import type { CSSResultGroup, TemplateResult } from 'lit';
 
 type EnqueueMode = 'replace' | 'play' | 'next' | 'add';
 type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
-type PanelTab = 'now' | 'search' | 'speakers';
+type PanelTab = 'now' | 'search' | 'speakers' | 'party';
 type BrowserView = 'results' | 'artist' | 'album';
 
 type HassEntity = {
@@ -66,7 +66,9 @@ interface GammaSonosPlayerConfig {
   search_media_types?: MediaType[];
   show_grouping?: boolean;
   show_search?: boolean;
+  show_party?: boolean;
   show_queue_hint?: boolean;
+  party_dashboard_url?: string;
   background?: string;
   accent_color?: string;
 }
@@ -95,20 +97,22 @@ const DEFAULT_CONFIG: Required<
     | 'library_only'
     | 'show_grouping'
     | 'show_search'
+    | 'show_party'
     | 'show_queue_hint'
     | 'background'
     | 'accent_color'
   >
 > = {
-  width: '420px',
+  width: '100%',
   height: 'auto',
-  fill_container: false,
+  fill_container: true,
   compact: false,
   enqueue_mode: 'next',
   search_limit: 5,
   library_only: false,
   show_grouping: true,
   show_search: true,
+  show_party: true,
   show_queue_hint: true,
   background: '#101722',
   accent_color: '#39d98a',
@@ -185,6 +189,7 @@ export class GammaSonosPlayerCard extends LitElement {
     selectedArtist: { state: true },
     selectedAlbum: { state: true },
     showVolumeMixer: { state: true },
+    groupError: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -201,6 +206,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private selectedArtist?: SearchItem;
   private selectedAlbum?: SearchItem;
   private showVolumeMixer = false;
+  private groupError = '';
 
   static get styles(): CSSResultGroup {
     return css`
@@ -617,12 +623,13 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .tabs {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(var(--gamma-sonos-tabs, 3), minmax(0, 1fr));
       }
 
       .grouping,
       .search,
-      .speakers {
+      .speakers,
+      .party {
         display: grid;
         gap: 10px;
       }
@@ -849,6 +856,26 @@ export class GammaSonosPlayerCard extends LitElement {
         color: var(--primary-text-color, #f4f7fb);
       }
 
+      .party-frame {
+        background: rgb(255 255 255 / 5%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 16px;
+        height: min(540px, 72vh);
+        min-height: 360px;
+        overflow: hidden;
+      }
+
+      .party-frame iframe {
+        border: 0;
+        height: 100%;
+        width: 100%;
+      }
+
+      .party-actions {
+        display: flex;
+        gap: 8px;
+      }
+
       .artist-header {
         align-items: center;
         background: rgb(255 255 255 / 5%);
@@ -1067,6 +1094,59 @@ export class GammaSonosPlayerCard extends LitElement {
     });
   }
 
+  private matchingMusicAssistantPlayer(entity?: HassEntity): HassEntity | undefined {
+    if (!entity) {
+      return undefined;
+    }
+
+    if (isMusicAssistantPlayer(entity)) {
+      return entity;
+    }
+
+    const [, objectId = ''] = entity.entity_id.split('.');
+    const likelyEntityId = `media_player.${objectId}_2`;
+    const friendlyName = String(entity.attributes.friendly_name ?? '').trim().toLowerCase();
+
+    return (
+      this.allPlayers.find((player) => player.entity_id === likelyEntityId && isMusicAssistantPlayer(player)) ??
+      this.allPlayers.find((player) => (
+        isMusicAssistantPlayer(player) &&
+        String(player.attributes.friendly_name ?? '').trim().toLowerCase() === friendlyName
+      ))
+    );
+  }
+
+  private resolveGroupPlayers(
+    anchor: HassEntity,
+    selectedPlayers: HassEntity[],
+  ): { anchor: HassEntity; members: HassEntity[]; error?: string } {
+    const requestedPlayers = [anchor, ...selectedPlayers];
+    const hasMusicAssistant = requestedPlayers.some((player) => isMusicAssistantPlayer(player));
+    const hasNative = requestedPlayers.some((player) => !isMusicAssistantPlayer(player));
+
+    if (!hasMusicAssistant || !hasNative) {
+      return { anchor, members: selectedPlayers };
+    }
+
+    const resolvedAnchor = this.matchingMusicAssistantPlayer(anchor);
+    const resolvedMembers = selectedPlayers
+      .map((player) => this.matchingMusicAssistantPlayer(player))
+      .filter((player): player is HassEntity => Boolean(player));
+
+    if (!resolvedAnchor || resolvedMembers.length !== selectedPlayers.length) {
+      return {
+        anchor,
+        members: [],
+        error: 'Mixed speaker groups need the Music Assistant version of each room in this card.',
+      };
+    }
+
+    return {
+      anchor: resolvedAnchor,
+      members: resolvedMembers.filter((player) => player.entity_id !== resolvedAnchor.entity_id),
+    };
+  }
+
   private service(
     domain: string,
     service: string,
@@ -1135,6 +1215,8 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private toggleGroupSelection(entityId: string): void {
+    this.groupError = '';
+
     if (this.selectedGroupIds.includes(entityId)) {
       this.selectedGroupIds = this.selectedGroupIds.filter((id) => id !== entityId);
       return;
@@ -1144,6 +1226,8 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private groupSelected(): void {
+    this.groupError = '';
+
     if (
       !this.activeEntityId ||
       !this.groupablePlayers.some((player) => player.entity_id === this.activeEntityId) ||
@@ -1152,13 +1236,35 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
-    const groupMembers = this.selectedGroupIds.filter((id) => {
-      const player = this.hass?.states[id];
-      return (
-        id !== this.activeEntityId &&
-        this.groupablePlayers.some((groupable) => groupable.entity_id === player?.entity_id)
-      );
-    });
+    const activePlayer = this.activePlayer;
+    const selectedPlayers = this.selectedGroupIds
+      .filter((id) => id !== this.activeEntityId)
+      .map((id) => this.hass?.states[id])
+      .filter((player): player is HassEntity => {
+        if (!player) {
+          return false;
+        }
+
+        return this.groupablePlayers.some((groupable) => groupable.entity_id === player.entity_id);
+      });
+
+    if (!activePlayer || selectedPlayers.length === 0) {
+      return;
+    }
+
+    const resolved = this.resolveGroupPlayers(activePlayer, selectedPlayers);
+
+    if (resolved.error) {
+      this.groupError = resolved.error;
+      return;
+    }
+
+    const groupMembers = resolved.members
+      .map((player) => player.entity_id)
+      .filter((entityId, index, ids) => (
+        entityId !== resolved.anchor.entity_id &&
+        ids.indexOf(entityId) === index
+      ));
 
     if (groupMembers.length === 0) {
       return;
@@ -1167,19 +1273,37 @@ export class GammaSonosPlayerCard extends LitElement {
     this.service('media_player', 'join', {
       group_members: groupMembers,
     }, {
-      entity_id: this.activeEntityId,
+      entity_id: resolved.anchor.entity_id,
     });
+
+    this.selectedEntityId = resolved.anchor.entity_id;
+    window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, resolved.anchor.entity_id);
   }
 
   private continueInSelectedRoom(): void {
-    const targetEntityId = this.selectedGroupIds.find((id) => id !== this.playbackEntityId);
+    this.groupError = '';
 
-    if (!targetEntityId || !this.playbackEntityId) {
+    const targetPlayer = this.selectedGroupIds
+      .map((id) => this.hass?.states[id])
+      .find((player): player is HassEntity => {
+        if (!player) {
+          return false;
+        }
+
+        return player.entity_id !== this.playbackEntityId;
+      });
+    const sourcePlayer = this.playbackPlayer;
+    const sourceEntityId =
+      this.matchingMusicAssistantPlayer(sourcePlayer)?.entity_id ?? this.playbackEntityId;
+    const targetEntityId =
+      this.matchingMusicAssistantPlayer(targetPlayer)?.entity_id ?? targetPlayer?.entity_id;
+
+    if (!targetEntityId || !sourceEntityId) {
       return;
     }
 
     this.service('music_assistant', 'transfer_queue', {
-      source_player: this.playbackEntityId,
+      source_player: sourceEntityId,
       auto_play: true,
     }, {
       entity_id: targetEntityId,
@@ -1304,15 +1428,18 @@ export class GammaSonosPlayerCard extends LitElement {
     const configuredEnqueue =
       enqueueOverride ?? this.config.enqueue_mode ?? DEFAULT_CONFIG.enqueue_mode;
     const enqueue = this.isPlaying || configuredEnqueue !== 'next' ? configuredEnqueue : 'play';
+    const targetPlayer = this.matchingMusicAssistantPlayer(this.activePlayer) ?? this.activePlayer;
+    const targetEntityId = targetPlayer?.entity_id ?? this.activeEntityId;
 
     this.playbackPending = true;
-    window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, this.activeEntityId);
+    window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, targetEntityId);
+    this.selectedEntityId = targetEntityId;
     const result = this.service('music_assistant', 'play_media', {
       media_id: mediaId,
       media_type: item.media_type || item.type,
       enqueue,
     }, {
-      entity_id: this.activeEntityId,
+      entity_id: targetEntityId,
     });
 
     if (result && typeof result.finally === 'function') {
@@ -1438,6 +1565,7 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <section class="grouping">
         <span class="section-title">Select Speakers To Group With ${this.activeName}</span>
+        ${this.groupError ? html`<div class="error">${this.groupError}</div>` : nothing}
         <div class="group-row">
           ${groupablePlayers.map((player) => {
             const selected =
@@ -1533,8 +1661,14 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private renderTabs(): TemplateResult {
+    const showParty = Boolean(this.config.show_party ?? DEFAULT_CONFIG.show_party);
+
     return html`
-      <div class="tabs" aria-label="Player panels">
+      <div
+        class="tabs"
+        aria-label="Player panels"
+        style="--gamma-sonos-tabs: ${showParty ? 4 : 3};"
+      >
         <button
           class=${this.activeTab === 'now' ? 'active' : ''}
           @click=${() => {
@@ -1559,6 +1693,18 @@ export class GammaSonosPlayerCard extends LitElement {
         >
           Speakers
         </button>
+        ${showParty
+          ? html`
+              <button
+                class=${this.activeTab === 'party' ? 'active' : ''}
+                @click=${() => {
+                  this.activeTab = 'party';
+                }}
+              >
+                Party
+              </button>
+            `
+          : nothing}
       </div>
     `;
   }
@@ -1779,6 +1925,32 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
+  private renderParty(): TemplateResult {
+    const partyUrl = this.config.party_dashboard_url?.trim();
+
+    return html`
+      <section class="party">
+        <span class="section-title">Music Assistant Party</span>
+        ${partyUrl
+          ? html`
+              <div class="party-actions">
+                <a class="small-action" href=${partyUrl} target="_blank" rel="noreferrer">
+                  Open Party Dashboard
+                </a>
+              </div>
+              <div class="party-frame">
+                <iframe title="Music Assistant Party" src=${partyUrl}></iframe>
+              </div>
+            `
+          : html`
+              <div class="hint">
+                Enable the Music Assistant Party plugin and paste its dashboard URL in this card.
+              </div>
+            `}
+      </section>
+    `;
+  }
+
   private renderResults(): TemplateResult {
     return html`
       <div class="results">
@@ -1828,6 +2000,16 @@ export class GammaSonosPlayerCard extends LitElement {
                 ? nothing
                 : html`
                     <span class="result-actions">
+                      <button
+                        class="now"
+                        ?disabled=${this.playbackPending}
+                        @click=${(event: Event) => {
+                          event.stopPropagation();
+                          this.playSearchResult(item, 'play');
+                        }}
+                      >
+                        Now
+                      </button>
                       <button
                         ?disabled=${this.playbackPending}
                         @click=${(event: Event) => {
@@ -1897,7 +2079,9 @@ export class GammaSonosPlayerCard extends LitElement {
             ? this.renderNowPlaying(title, artist, unavailable)
             : this.activeTab === 'search'
               ? this.renderSearch()
-              : this.renderSpeakers()}
+              : this.activeTab === 'speakers'
+                ? this.renderSpeakers()
+                : this.renderParty()}
         </div>
       </ha-card>
     `;
@@ -2092,7 +2276,6 @@ class GammaSonosPlayerCardEditor extends LitElement {
       <div class="editor">
         <section class="section">
           <h3>Main</h3>
-          ${this.renderEntityPicker('Initial Player', 'entity')}
           ${this.renderEntityPicker('Players', 'entities', true)}
           <div class="grid">
             ${this.renderTextInput('Name', 'name', 'Music')}
@@ -2100,6 +2283,11 @@ class GammaSonosPlayerCardEditor extends LitElement {
               'Music Assistant Config Entry ID',
               'music_assistant_config_entry_id',
               '01KQ...',
+            )}
+            ${this.renderTextInput(
+              'Music Assistant Party Dashboard URL',
+              'party_dashboard_url',
+              '/music-assistant/party',
             )}
             ${this.renderSelect('Enqueue Mode', 'enqueue_mode', ['next', 'play', 'replace', 'replace_next', 'add'], 'next')}
             ${this.renderNumberInput('Search Limit', 'search_limit', '8')}
@@ -2119,6 +2307,7 @@ class GammaSonosPlayerCardEditor extends LitElement {
             ${this.renderSwitch('Compact Layout', 'compact', false)}
             ${this.renderSwitch('Show Search', 'show_search', true)}
             ${this.renderSwitch('Show Grouping', 'show_grouping', true)}
+            ${this.renderSwitch('Show Party', 'show_party', true)}
             ${this.renderSwitch('Library Only', 'library_only', false)}
           </div>
         </section>

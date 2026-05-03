@@ -8,7 +8,8 @@ This repo is a Home Assistant Lovelace custom card focused on Music Assistant se
 - The primary screen is now-playing first: selected player, artwork, metadata, transport controls, and volume.
 - Music search should use Music Assistant only. Spotify is assumed to be connected as a Music Assistant provider, not as a separate UI tab.
 - Speakers are controlled through Home Assistant media player services. The Speakers panel should make grouping explicit: select speakers, then apply grouping.
-- Per-speaker volume should remain visible in the Speakers panel, even when speakers are not grouped.
+- Per-speaker volume should be in a collapsed mixer by default so grouping stays readable.
+- Party mode should link/embed the Music Assistant Party plugin dashboard; that dashboard owns the QR code.
 - Avoid making the card a clone of existing Sonos cards. Use other projects only as behavioral references.
 
 ## Current Architecture
@@ -93,7 +94,7 @@ with:
 
 ```ts
 {
-  entity_id: activeEntityId,
+  entity_id: musicAssistantEntityForActiveRoom || activeEntityId,
   media_id: item.uri || item.name,
   media_type: item.media_type || item.type,
   enqueue: config.enqueue_mode ?? 'next'
@@ -101,6 +102,7 @@ with:
 ```
 
 Default enqueue mode is `next`, matching the user’s preference to add selected results after the current track.
+Rows also expose a `Now` action that sends `enqueue: play`.
 
 ### Speaker Control
 
@@ -121,6 +123,19 @@ Grouping is intentionally two-step:
 2. User taps `Group N Speakers`.
 
 Do not return to immediate group-on-chip-click behavior.
+
+Native Sonos grouping only accepts Sonos entities. If the user mixes a native Sonos entity with Music Assistant/non-Sonos entities, resolve every selected room to its matching Music Assistant player before calling `media_player.join`. Matching is by `<entity>_2` first and then exact friendly name. If any selected room has no Music Assistant match, show a card error and do not call native Sonos join.
+
+### Party Dashboard
+
+Music Assistant Party is exposed through Music Assistant's Party plugin dashboard. The card supports:
+
+```yaml
+show_party: true
+party_dashboard_url: /music-assistant/party
+```
+
+If the route changes in a user's HA install, they should paste the exact dashboard URL from the Music Assistant sidebar/plugin view into the visual editor or YAML.
 
 ## Player Discovery
 
