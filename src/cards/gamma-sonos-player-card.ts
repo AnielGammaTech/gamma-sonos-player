@@ -3,7 +3,7 @@ import type { CSSResultGroup, TemplateResult } from 'lit';
 
 type EnqueueMode = 'replace' | 'play' | 'next' | 'add';
 type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
-type PanelTab = 'search' | 'speakers';
+type PanelTab = 'now' | 'search' | 'speakers';
 type BrowserView = 'results' | 'artist';
 
 type HassEntity = {
@@ -176,7 +176,7 @@ export class GammaSonosPlayerCard extends LitElement {
   public hass?: HomeAssistant;
   private config!: GammaSonosPlayerConfig;
   private selectedEntityId = '';
-  private activeTab: PanelTab = 'search';
+  private activeTab: PanelTab = 'now';
   private query = '';
   private searching = false;
   private searchError = '';
@@ -284,6 +284,33 @@ export class GammaSonosPlayerCard extends LitElement {
         align-items: center;
         display: inline-flex;
         gap: 8px;
+      }
+
+      .now-view {
+        display: grid;
+        gap: 14px;
+        justify-items: center;
+      }
+
+      .now-artwork {
+        aspect-ratio: 1;
+        background:
+          radial-gradient(circle, rgb(255 255 255 / 9%), transparent 70%),
+          rgb(255 255 255 / 5%);
+        background-image: var(--gamma-sonos-cover);
+        background-position: center;
+        background-size: cover;
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 22px;
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 12%),
+          0 18px 34px rgb(0 0 0 / 24%);
+        max-width: min(360px, 82%);
+        width: min(360px, 82%);
+      }
+
+      .now-view .metadata {
+        width: 100%;
       }
 
       .player::before {
@@ -545,7 +572,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .tabs {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
       .grouping,
@@ -1163,7 +1190,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
     });
 
-    return items.slice(0, toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit));
+    return items;
   }
 
   private playSearchResult(item: SearchItem, enqueueOverride?: EnqueueMode): void {
@@ -1405,6 +1432,14 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <div class="tabs" aria-label="Player panels">
         <button
+          class=${this.activeTab === 'now' ? 'active' : ''}
+          @click=${() => {
+            this.activeTab = 'now';
+          }}
+        >
+          Now
+        </button>
+        <button
           class=${this.activeTab === 'search' ? 'active' : ''}
           @click=${() => {
             this.activeTab = 'search';
@@ -1421,6 +1456,37 @@ export class GammaSonosPlayerCard extends LitElement {
           Speakers
         </button>
       </div>
+    `;
+  }
+
+  private renderNowPlaying(title: string, artist: string, unavailable: boolean): TemplateResult {
+    return html`
+      <section class="now-view">
+        <div class="now-artwork" aria-label="Current album artwork"></div>
+        <div class="metadata">
+          <span class="track">${title}</span>
+          <span class="artist">${artist}</span>
+        </div>
+        <div class="controls">
+          <button
+            class="icon-button"
+            ?disabled=${unavailable}
+            @click=${() => this.mediaService('media_previous_track', {}, this.playbackEntityId)}
+          >
+            <ha-icon .icon=${'mdi:skip-previous'}></ha-icon>
+          </button>
+          <button class="play-button" ?disabled=${unavailable} @click=${this.playPause}>
+            <ha-icon .icon=${this.isPlaying ? 'mdi:pause' : 'mdi:play'}></ha-icon>
+          </button>
+          <button
+            class="icon-button"
+            ?disabled=${unavailable}
+            @click=${() => this.mediaService('media_next_track', {}, this.playbackEntityId)}
+          >
+            <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
+          </button>
+        </div>
+      </section>
     `;
   }
 
@@ -1485,7 +1551,9 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <section class="result-section">
         <span class="section-header">${label}</span>
-        ${items.map((item) => this.renderResultItem(item, action))}
+        ${items
+          .slice(0, toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit))
+          .map((item) => this.renderResultItem(item, action))}
       </section>
     `;
   }
@@ -1668,7 +1736,11 @@ export class GammaSonosPlayerCard extends LitElement {
             <span class="state">${this.volume}%</span>
           </div>
           ${this.renderTabs()}
-          ${this.activeTab === 'search' ? this.renderSearch() : this.renderSpeakers()}
+          ${this.activeTab === 'now'
+            ? this.renderNowPlaying(title, artist, unavailable)
+            : this.activeTab === 'search'
+              ? this.renderSearch()
+              : this.renderSpeakers()}
         </div>
       </ha-card>
     `;
