@@ -4,7 +4,7 @@ import type { CSSResultGroup, TemplateResult } from 'lit';
 type EnqueueMode = 'replace' | 'play' | 'next' | 'add';
 type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
 type PanelTab = 'now' | 'search' | 'speakers';
-type BrowserView = 'results' | 'artist';
+type BrowserView = 'results' | 'artist' | 'album';
 
 type HassEntity = {
   entity_id: string;
@@ -183,6 +183,8 @@ export class GammaSonosPlayerCard extends LitElement {
     playbackPending: { state: true },
     browserView: { state: true },
     selectedArtist: { state: true },
+    selectedAlbum: { state: true },
+    showVolumeMixer: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -197,6 +199,8 @@ export class GammaSonosPlayerCard extends LitElement {
   private playbackPending = false;
   private browserView: BrowserView = 'results';
   private selectedArtist?: SearchItem;
+  private selectedAlbum?: SearchItem;
+  private showVolumeMixer = false;
 
   static get styles(): CSSResultGroup {
     return css`
@@ -695,6 +699,25 @@ export class GammaSonosPlayerCard extends LitElement {
         gap: 8px;
       }
 
+      .section-toggle {
+        align-items: center;
+        appearance: none;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 14px;
+        color: var(--primary-text-color, #f4f7fb);
+        cursor: pointer;
+        display: flex;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        justify-content: space-between;
+        letter-spacing: 0.04em;
+        min-height: 42px;
+        padding: 0 12px;
+        text-transform: uppercase;
+      }
+
       .speaker-row {
         background: rgb(255 255 255 / 5%);
         border: 1px solid rgb(255 255 255 / 8%);
@@ -1030,15 +1053,18 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get groupablePlayers(): HassEntity[] {
-    const musicAssistantPlayers = this.allPlayers.filter((player) =>
-      isMusicAssistantPlayer(player),
-    );
+    const seen = new Set<string>();
 
-    if (musicAssistantPlayers.length > 1) {
-      return musicAssistantPlayers;
-    }
+    return this.allPlayers.filter((player) => {
+      const canGroup = supportsGrouping(player) || isMusicAssistantPlayer(player);
 
-    return this.allPlayers.filter((player) => supportsGrouping(player));
+      if (!canGroup || seen.has(player.entity_id)) {
+        return false;
+      }
+
+      seen.add(player.entity_id);
+      return true;
+    });
   }
 
   private service(
@@ -1216,6 +1242,7 @@ export class GammaSonosPlayerCard extends LitElement {
       if (!preserveArtist) {
         this.browserView = 'results';
         this.selectedArtist = undefined;
+        this.selectedAlbum = undefined;
       }
     } catch (error) {
       this.searchError = error instanceof Error ? error.message : 'Search failed';
@@ -1226,7 +1253,16 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private openArtist(item: SearchItem): void {
     this.selectedArtist = item;
+    this.selectedAlbum = undefined;
     this.browserView = 'artist';
+    this.query = item.name ?? this.query;
+    void this.searchMusicAssistant(true);
+  }
+
+  private openAlbum(item: SearchItem): void {
+    this.selectedAlbum = item;
+    this.selectedArtist = undefined;
+    this.browserView = 'album';
     this.query = item.name ?? this.query;
     void this.searchMusicAssistant(true);
   }
@@ -1594,6 +1630,8 @@ export class GammaSonosPlayerCard extends LitElement {
         ${this.searchResults.length > 0
           ? this.browserView === 'artist'
             ? this.renderArtistView()
+            : this.browserView === 'album'
+              ? this.renderAlbumView()
             : this.renderResults()
           : nothing}
         ${this.config.show_queue_hint
@@ -1610,7 +1648,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private renderResultSection(
     label: string,
     items: SearchItem[],
-    action: 'open' | 'play' = 'play',
+    action: 'artist' | 'album' | 'play' = 'play',
   ): TemplateResult | typeof nothing {
     if (items.length === 0) {
       return nothing;
@@ -1650,8 +1688,36 @@ export class GammaSonosPlayerCard extends LitElement {
           </button>
         </div>
         ${this.renderResultSection('Songs', this.itemsByType('track'))}
-        ${this.renderResultSection('Albums', this.itemsByType('album'))}
+        ${this.renderResultSection('Albums', this.itemsByType('album'), 'album')}
         ${this.renderResultSection('Playlists', this.itemsByType('playlist'))}
+      </div>
+    `;
+  }
+
+  private renderAlbumView(): TemplateResult {
+    const album = this.selectedAlbum;
+    const image = album?.image || album?.thumb || '';
+    const albumName = album?.name ?? this.query;
+
+    return html`
+      <div class="results">
+        <div class="artist-header">
+          <div
+            class="result-art"
+            style=${image ? `background-image: url("${image}")` : ''}
+          ></div>
+          <div class="result-main">
+            <span class="result-name">${albumName}</span>
+            <span class="result-sub">Album</span>
+          </div>
+          <button class="small-action" @click=${() => {
+            this.browserView = 'results';
+            this.selectedAlbum = undefined;
+          }}>
+            Back
+          </button>
+        </div>
+        ${this.renderResultSection('Songs', this.itemsByType('track'))}
       </div>
     `;
   }
@@ -1661,41 +1727,54 @@ export class GammaSonosPlayerCard extends LitElement {
       <section class="speakers">
         ${this.renderCurrentGroup()}
         ${this.renderGrouping()}
-        <span class="section-title">Speaker Volume</span>
-        <div class="speaker-list">
-          ${this.allPlayers.map((player) => {
-            const unavailable = isUnavailable(player);
-            const volume = Math.round(toNumber(player.attributes.volume_level, 0) * 100);
+        <button
+          class="section-toggle"
+          @click=${() => {
+            this.showVolumeMixer = !this.showVolumeMixer;
+          }}
+        >
+          <span>Speaker Volume</span>
+          <ha-icon .icon=${this.showVolumeMixer ? 'mdi:chevron-up' : 'mdi:chevron-down'}></ha-icon>
+        </button>
+        ${this.showVolumeMixer
+          ? html`
+              <div class="speaker-list">
+                ${this.allPlayers.map((player) => {
+                  const unavailable = isUnavailable(player);
+                  const volume = Math.round(toNumber(player.attributes.volume_level, 0) * 100);
 
-            return html`
-              <div class="speaker-row">
-                <span class="speaker-name">
-                  ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
-                </span>
-                <button
-                  class="icon-button"
-                  ?disabled=${unavailable}
-                  @click=${() => this.togglePlayerMute(player.entity_id)}
-                >
-                  <ha-icon .icon=${player.attributes.is_volume_muted ? 'mdi:volume-off' : 'mdi:volume-high'}></ha-icon>
-                </button>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  .value=${String(volume)}
-                  ?disabled=${unavailable}
-                  @change=${(event: Event) =>
-                    this.setPlayerVolume(
-                      player.entity_id,
-                      (event.target as HTMLInputElement).value,
-                    )}
-                />
-                <span class="state">${volume}%</span>
+                  return html`
+                    <div class="speaker-row">
+                      <span class="speaker-name">
+                        ${player.attributes.friendly_name ??
+                        titleCase(player.entity_id.split('.')[1])}
+                      </span>
+                      <button
+                        class="icon-button"
+                        ?disabled=${unavailable}
+                        @click=${() => this.togglePlayerMute(player.entity_id)}
+                      >
+                        <ha-icon .icon=${player.attributes.is_volume_muted ? 'mdi:volume-off' : 'mdi:volume-high'}></ha-icon>
+                      </button>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        .value=${String(volume)}
+                        ?disabled=${unavailable}
+                        @change=${(event: Event) =>
+                          this.setPlayerVolume(
+                            player.entity_id,
+                            (event.target as HTMLInputElement).value,
+                          )}
+                      />
+                      <span class="state">${volume}%</span>
+                    </div>
+                  `;
+                })}
               </div>
-            `;
-          })}
-        </div>
+            `
+          : nothing}
       </section>
     `;
   }
@@ -1703,8 +1782,8 @@ export class GammaSonosPlayerCard extends LitElement {
   private renderResults(): TemplateResult {
     return html`
       <div class="results">
-        ${this.renderResultSection('Artists', this.itemsByType('artist'), 'open')}
-        ${this.renderResultSection('Albums', this.itemsByType('album'))}
+        ${this.renderResultSection('Artists', this.itemsByType('artist'), 'artist')}
+        ${this.renderResultSection('Albums', this.itemsByType('album'), 'album')}
         ${this.renderResultSection('Songs', this.itemsByType('track'))}
         ${this.renderResultSection('Playlists', this.itemsByType('playlist'))}
         ${this.renderResultSection('Radio', this.itemsByType('radio'))}
@@ -1713,7 +1792,10 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
-  private renderResultItem(item: SearchItem, action: 'open' | 'play' = 'play'): TemplateResult {
+  private renderResultItem(
+    item: SearchItem,
+    action: 'artist' | 'album' | 'play' = 'play',
+  ): TemplateResult {
           const artist =
             item.artist ||
             item.artists?.map((entry) => entry.name).filter(Boolean).join(', ') ||
@@ -1725,8 +1807,14 @@ export class GammaSonosPlayerCard extends LitElement {
 
           return html`
             <div
-              class="result ${action === 'open' ? 'clickable' : ''}"
-              @click=${action === 'open' ? () => this.openArtist(item) : undefined}
+              class="result ${action === 'artist' || action === 'album'
+                ? 'clickable'
+                : ''}"
+              @click=${action === 'artist'
+                ? () => this.openArtist(item)
+                : action === 'album'
+                  ? () => this.openAlbum(item)
+                  : () => this.playSearchResult(item, 'play')}
             >
               <div
                 class="result-art"
@@ -1736,20 +1824,16 @@ export class GammaSonosPlayerCard extends LitElement {
                 <span class="result-name">${item.name ?? item.uri ?? 'Untitled'}</span>
                 <span class="result-sub">${artist}</span>
               </div>
-              ${action === 'open'
+              ${action === 'artist' || action === 'album'
                 ? nothing
                 : html`
                     <span class="result-actions">
                       <button
-                        class="now"
                         ?disabled=${this.playbackPending}
-                        @click=${() => this.playSearchResult(item, 'play')}
-                      >
-                        Now
-                      </button>
-                      <button
-                        ?disabled=${this.playbackPending}
-                        @click=${() => this.playSearchResult(item, 'next')}
+                        @click=${(event: Event) => {
+                          event.stopPropagation();
+                          this.playSearchResult(item, 'next');
+                        }}
                       >
                         Next
                       </button>
