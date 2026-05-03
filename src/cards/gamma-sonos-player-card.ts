@@ -115,6 +115,7 @@ const DEFAULT_CONFIG: Required<
 };
 
 const MEDIA_PLAYER_GROUPING_FEATURE = 524288;
+const LAST_PLAYER_STORAGE_KEY = 'gamma-sonos-player:last-player';
 
 function toNumber(value: unknown, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -135,6 +136,17 @@ function supportsGrouping(entity?: HassEntity): boolean {
   return (
     Boolean(supportedFeatures & MEDIA_PLAYER_GROUPING_FEATURE) ||
     Array.isArray(entity?.attributes.group_members)
+  );
+}
+
+function isMusicAssistantPlayer(entity?: HassEntity): boolean {
+  const platform = String(entity?.attributes.platform ?? '').toLowerCase();
+  const source = String(entity?.attributes.source ?? '').toLowerCase();
+
+  return (
+    entity?.attributes.mass_player_type === 'player' ||
+    platform.includes('music_assistant') ||
+    source.includes('music assistant')
   );
 }
 
@@ -260,6 +272,10 @@ export class GammaSonosPlayerCard extends LitElement {
         gap: 10px;
         grid-template-columns: 54px minmax(0, 1fr) auto;
         padding: 8px;
+      }
+
+      .player.now-active .mini-player {
+        display: none;
       }
 
       .mini-art {
@@ -530,11 +546,21 @@ export class GammaSonosPlayerCard extends LitElement {
       .icon-button,
       .play-button {
         align-items: center;
-        background: rgb(255 255 255 / 7%);
-        border: 1px solid rgb(255 255 255 / 10%);
+        background:
+          radial-gradient(circle at 36% 28%, rgb(255 255 255 / 12%), transparent 28%),
+          linear-gradient(145deg, rgb(255 255 255 / 8%), rgb(0 0 0 / 12%));
+        border: 1px solid rgb(255 255 255 / 11%);
         border-radius: 999px;
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 14%),
+          inset 0 -10px 18px rgb(0 0 0 / 10%),
+          0 10px 20px rgb(0 0 0 / 16%);
         display: inline-flex;
         justify-content: center;
+        transition:
+          box-shadow 140ms ease,
+          transform 140ms ease,
+          background 140ms ease;
       }
 
       .icon-button {
@@ -544,19 +570,34 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .play-button {
         background:
-          radial-gradient(circle, color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent), transparent 74%),
-          rgb(255 255 255 / 8%);
-        box-shadow: 0 0 24px color-mix(in srgb, var(--gamma-sonos-accent) 18%, transparent);
+          radial-gradient(circle at 38% 30%, rgb(255 255 255 / 18%), transparent 28%),
+          radial-gradient(circle, color-mix(in srgb, var(--gamma-sonos-accent) 34%, transparent), transparent 72%),
+          linear-gradient(145deg, color-mix(in srgb, var(--gamma-sonos-accent) 18%, #ffffff 5%), rgb(0 0 0 / 13%));
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 42%, transparent);
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 16%),
+          inset 0 -12px 20px rgb(0 0 0 / 12%),
+          0 0 28px color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent),
+          0 12px 24px rgb(0 0 0 / 20%);
         height: clamp(50px, 12vw, 58px);
         width: clamp(50px, 12vw, 58px);
       }
 
+      .icon-button:active,
+      .play-button:active {
+        transform: scale(0.96);
+      }
+
       ha-icon {
         --mdc-icon-size: 22px;
+        color: color-mix(in srgb, var(--primary-text-color, #f4f7fb) 90%, var(--gamma-sonos-accent) 10%);
+        filter: drop-shadow(0 0 8px rgb(255 255 255 / 10%));
       }
 
       .play-button ha-icon {
         --mdc-icon-size: 28px;
+        color: #ffffff;
+        filter: drop-shadow(0 0 10px color-mix(in srgb, var(--gamma-sonos-accent) 34%, transparent));
       }
 
       .volume-row {
@@ -720,6 +761,14 @@ export class GammaSonosPlayerCard extends LitElement {
         padding: 8px;
       }
 
+      .result.clickable {
+        cursor: pointer;
+      }
+
+      .result.clickable:active {
+        transform: scale(0.992);
+      }
+
       .result-art {
         background:
           radial-gradient(circle, rgb(255 255 255 / 9%), transparent 68%),
@@ -854,7 +903,7 @@ export class GammaSonosPlayerCard extends LitElement {
   public setConfig(config: GammaSonosPlayerConfig): void {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.selectedEntityId =
-      this.config.entity || this.config.entities?.[0] || this.config.music_assistant_entities?.[0] || '';
+      this.config.entity || window.localStorage.getItem(LAST_PLAYER_STORAGE_KEY) || '';
     this.style.setProperty(
       '--gamma-sonos-width',
       this.config.fill_container ? '100%' : this.config.width ?? DEFAULT_CONFIG.width,
@@ -921,6 +970,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private get activePlayer(): HassEntity | undefined {
     return (
       this.hass?.states[this.selectedEntityId] ??
+      this.allPlayers.find((player) => player.state === 'playing') ??
       this.allPlayers[0]
     );
   }
@@ -980,6 +1030,14 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get groupablePlayers(): HassEntity[] {
+    const musicAssistantPlayers = this.allPlayers.filter((player) =>
+      isMusicAssistantPlayer(player),
+    );
+
+    if (musicAssistantPlayers.length > 1) {
+      return musicAssistantPlayers;
+    }
+
     return this.allPlayers.filter((player) => supportsGrouping(player));
   }
 
@@ -1062,7 +1120,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private groupSelected(): void {
     if (
       !this.activeEntityId ||
-      !supportsGrouping(this.activePlayer) ||
+      !this.groupablePlayers.some((player) => player.entity_id === this.activeEntityId) ||
       this.selectedGroupIds.length === 0
     ) {
       return;
@@ -1070,7 +1128,10 @@ export class GammaSonosPlayerCard extends LitElement {
 
     const groupMembers = this.selectedGroupIds.filter((id) => {
       const player = this.hass?.states[id];
-      return id !== this.activeEntityId && supportsGrouping(player);
+      return (
+        id !== this.activeEntityId &&
+        this.groupablePlayers.some((groupable) => groupable.entity_id === player?.entity_id)
+      );
     });
 
     if (groupMembers.length === 0) {
@@ -1209,6 +1270,7 @@ export class GammaSonosPlayerCard extends LitElement {
     const enqueue = this.isPlaying || configuredEnqueue !== 'next' ? configuredEnqueue : 'play';
 
     this.playbackPending = true;
+    window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, this.activeEntityId);
     const result = this.service('music_assistant', 'play_media', {
       media_id: mediaId,
       media_type: item.media_type || item.type,
@@ -1262,6 +1324,7 @@ export class GammaSonosPlayerCard extends LitElement {
                 const entityId = (event.target as HTMLSelectElement).value;
                 const player = this.hass?.states[entityId];
                 this.selectedEntityId = entityId;
+                window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, entityId);
                 const members = player?.attributes.group_members;
                 this.selectedGroupIds = Array.isArray(members) ? [...members] : [entityId];
               }}
@@ -1322,10 +1385,15 @@ export class GammaSonosPlayerCard extends LitElement {
       return nothing;
     }
 
-    const activeCanGroup = supportsGrouping(this.activePlayer);
+    const activeCanGroup = groupablePlayers.some(
+      (player) => player.entity_id === this.activeEntityId,
+    );
     const selectedCount = this.selectedGroupIds.filter((id) => {
       const player = this.hass?.states[id];
-      return id !== this.activeEntityId && supportsGrouping(player);
+      return (
+        id !== this.activeEntityId &&
+        groupablePlayers.some((groupable) => groupable.entity_id === player?.entity_id)
+      );
     }).length;
     const moveTargetCount = this.selectedGroupIds.filter(
       (id) => id !== this.playbackEntityId,
@@ -1656,7 +1724,10 @@ export class GammaSonosPlayerCard extends LitElement {
           const image = item.image || item.thumb || item.album?.image || '';
 
           return html`
-            <div class="result">
+            <div
+              class="result ${action === 'open' ? 'clickable' : ''}"
+              @click=${action === 'open' ? () => this.openArtist(item) : undefined}
+            >
               <div
                 class="result-art"
                 style=${image ? `background-image: url("${image}")` : ''}
@@ -1666,7 +1737,7 @@ export class GammaSonosPlayerCard extends LitElement {
                 <span class="result-sub">${artist}</span>
               </div>
               ${action === 'open'
-                ? html`<button class="small-action" @click=${() => this.openArtist(item)}>Open</button>`
+                ? nothing
                 : html`
                     <span class="result-actions">
                       <button
@@ -1707,7 +1778,9 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <ha-card>
         <div
-          class="player ${this.config.compact ? 'compact' : ''}"
+          class="player ${this.config.compact ? 'compact' : ''} ${this.activeTab === 'now'
+            ? 'now-active'
+            : ''}"
           style="
             --gamma-sonos-cover: ${cover};
             --gamma-sonos-artwork: ${cover};
