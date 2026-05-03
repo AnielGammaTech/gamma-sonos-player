@@ -2,8 +2,9 @@ import { LitElement, css, html, nothing } from 'lit';
 import type { CSSResultGroup, TemplateResult } from 'lit';
 
 type EnqueueMode = 'replace' | 'play' | 'next' | 'add';
-type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio';
+type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
 type PanelTab = 'search' | 'speakers';
+type BrowserView = 'results' | 'artist';
 
 type HassEntity = {
   entity_id: string;
@@ -168,6 +169,8 @@ export class GammaSonosPlayerCard extends LitElement {
     searchResults: { state: true },
     selectedGroupIds: { state: true },
     playbackPending: { state: true },
+    browserView: { state: true },
+    selectedArtist: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -180,6 +183,8 @@ export class GammaSonosPlayerCard extends LitElement {
   private searchResults: SearchItem[] = [];
   private selectedGroupIds: string[] = [];
   private playbackPending = false;
+  private browserView: BrowserView = 'results';
+  private selectedArtist?: SearchItem;
 
   static get styles(): CSSResultGroup {
     return css`
@@ -244,6 +249,41 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .player.compact .track {
         font-size: clamp(16px, 4.2vw, 20px);
+      }
+
+      .mini-player {
+        align-items: center;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 9%);
+        border-radius: 16px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 54px minmax(0, 1fr) auto;
+        padding: 8px;
+      }
+
+      .mini-art {
+        aspect-ratio: 1;
+        background:
+          radial-gradient(circle, rgb(255 255 255 / 9%), transparent 70%),
+          rgb(255 255 255 / 5%);
+        background-image: var(--gamma-sonos-cover);
+        background-position: center;
+        background-size: cover;
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 12px;
+      }
+
+      .mini-meta {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .mini-controls {
+        align-items: center;
+        display: inline-flex;
+        gap: 8px;
       }
 
       .player::before {
@@ -626,9 +666,22 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .results {
         display: grid;
-        gap: 8px;
-        max-height: 156px;
+        gap: 12px;
+        max-height: 420px;
         overflow: auto;
+      }
+
+      .result-section {
+        display: grid;
+        gap: 7px;
+      }
+
+      .section-header {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
       }
 
       .result {
@@ -695,6 +748,51 @@ export class GammaSonosPlayerCard extends LitElement {
       .result-actions .now {
         background: color-mix(in srgb, var(--gamma-sonos-accent) 28%, transparent);
         color: var(--primary-text-color, #f4f7fb);
+      }
+
+      .artist-header {
+        align-items: center;
+        background: rgb(255 255 255 / 5%);
+        border: 1px solid rgb(255 255 255 / 8%);
+        border-radius: 16px;
+        display: flex;
+        gap: 12px;
+        padding: 10px;
+      }
+
+      .artist-header .result-art {
+        height: 64px;
+        width: 64px;
+      }
+
+      .current-group {
+        display: grid;
+        gap: 8px;
+      }
+
+      .current-member {
+        align-items: center;
+        background: rgb(255 255 255 / 5%);
+        border: 1px solid rgb(255 255 255 / 8%);
+        border-radius: 12px;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+        padding: 8px 10px;
+      }
+
+      .small-action {
+        appearance: none;
+        background: rgb(255 255 255 / 7%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 999px;
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 750;
+        min-height: 28px;
+        padding: 0 10px;
       }
 
       .hint,
@@ -979,7 +1077,19 @@ export class GammaSonosPlayerCard extends LitElement {
     this.selectedGroupIds = [];
   }
 
-  private async searchMusicAssistant(): Promise<void> {
+  private ungroupAll(): void {
+    this.groupMembers.forEach((entityId) => {
+      this.mediaService('unjoin', {}, entityId);
+    });
+    this.selectedGroupIds = [];
+  }
+
+  private removeFromGroup(entityId: string): void {
+    this.mediaService('unjoin', {}, entityId);
+    this.selectedGroupIds = this.selectedGroupIds.filter((id) => id !== entityId);
+  }
+
+  private async searchMusicAssistant(preserveArtist = false): Promise<void> {
     const name = this.query.trim();
 
     if (!name || !this.hass?.callWS) {
@@ -1015,11 +1125,22 @@ export class GammaSonosPlayerCard extends LitElement {
         return_response: true,
       });
       this.searchResults = this.extractSearchResults(response);
+      if (!preserveArtist) {
+        this.browserView = 'results';
+        this.selectedArtist = undefined;
+      }
     } catch (error) {
       this.searchError = error instanceof Error ? error.message : 'Search failed';
     } finally {
       this.searching = false;
     }
+  }
+
+  private openArtist(item: SearchItem): void {
+    this.selectedArtist = item;
+    this.browserView = 'artist';
+    this.query = item.name ?? this.query;
+    void this.searchMusicAssistant(true);
   }
 
   private extractSearchResults(response: Record<string, unknown>): SearchItem[] {
@@ -1132,6 +1253,41 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
+  private renderMiniPlayer(
+    title: string,
+    artist: string,
+    unavailable: boolean,
+  ): TemplateResult {
+    return html`
+      <section class="mini-player">
+        <div class="mini-art" aria-label="Artwork"></div>
+        <div class="mini-meta">
+          <span class="track">${title}</span>
+          <span class="artist">${artist}</span>
+        </div>
+        <div class="mini-controls">
+          <button
+            class="icon-button"
+            ?disabled=${unavailable}
+            @click=${() => this.mediaService('media_previous_track', {}, this.playbackEntityId)}
+          >
+            <ha-icon .icon=${'mdi:skip-previous'}></ha-icon>
+          </button>
+          <button class="play-button" ?disabled=${unavailable} @click=${this.playPause}>
+            <ha-icon .icon=${this.isPlaying ? 'mdi:pause' : 'mdi:play'}></ha-icon>
+          </button>
+          <button
+            class="icon-button"
+            ?disabled=${unavailable}
+            @click=${() => this.mediaService('media_next_track', {}, this.playbackEntityId)}
+          >
+            <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
   private renderGrouping(): TemplateResult | typeof nothing {
     const groupablePlayers = this.groupablePlayers;
 
@@ -1203,7 +1359,44 @@ export class GammaSonosPlayerCard extends LitElement {
             <span class="group-name">Ungroup Current</span>
             <span class="group-status">Break group</span>
           </button>
+          <button class="group-chip" @click=${this.ungroupAll}>
+            <span class="group-check">×</span>
+            <span class="group-name">Ungroup All</span>
+            <span class="group-status">Remove all rooms</span>
+          </button>
         </div>
+      </section>
+    `;
+  }
+
+  private renderCurrentGroup(): TemplateResult | typeof nothing {
+    const members = this.groupMembers
+      .map((entityId) => this.hass?.states[entityId])
+      .filter((player): player is HassEntity => Boolean(player));
+
+    if (members.length === 0) {
+      return nothing;
+    }
+
+    return html`
+      <section class="current-group">
+        <span class="section-title">Current Group</span>
+        ${members.map(
+          (player) => html`
+            <div class="current-member">
+              <span class="speaker-name">
+                ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
+              </span>
+              <button
+                class="small-action"
+                ?disabled=${player.entity_id === this.activeEntityId}
+                @click=${() => this.removeFromGroup(player.entity_id)}
+              >
+                Remove
+              </button>
+            </div>
+          `,
+        )}
       </section>
     `;
   }
@@ -1264,7 +1457,11 @@ export class GammaSonosPlayerCard extends LitElement {
         </div>
         ${this.searchError ? html`<div class="error">${this.searchError}</div>` : nothing}
         ${this.searching ? html`<div class="hint">Searching...</div>` : nothing}
-        ${this.searchResults.length > 0 ? this.renderResults() : nothing}
+        ${this.searchResults.length > 0
+          ? this.browserView === 'artist'
+            ? this.renderArtistView()
+            : this.renderResults()
+          : nothing}
         ${this.config.show_queue_hint
           ? html`<div class="hint">Tap a result to add it next with Music Assistant.</div>`
           : nothing}
@@ -1272,9 +1469,61 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
+  private itemsByType(mediaType: MediaType): SearchItem[] {
+    return this.searchResults.filter((item) => (item.media_type || item.type) === mediaType);
+  }
+
+  private renderResultSection(
+    label: string,
+    items: SearchItem[],
+    action: 'open' | 'play' = 'play',
+  ): TemplateResult | typeof nothing {
+    if (items.length === 0) {
+      return nothing;
+    }
+
+    return html`
+      <section class="result-section">
+        <span class="section-header">${label}</span>
+        ${items.map((item) => this.renderResultItem(item, action))}
+      </section>
+    `;
+  }
+
+  private renderArtistView(): TemplateResult {
+    const artist = this.selectedArtist;
+    const image = artist?.image || artist?.thumb || '';
+    const artistName = artist?.name ?? this.query;
+
+    return html`
+      <div class="results">
+        <div class="artist-header">
+          <div
+            class="result-art"
+            style=${image ? `background-image: url("${image}")` : ''}
+          ></div>
+          <div class="result-main">
+            <span class="result-name">${artistName}</span>
+            <span class="result-sub">Artist</span>
+          </div>
+          <button class="small-action" @click=${() => {
+            this.browserView = 'results';
+            this.selectedArtist = undefined;
+          }}>
+            Back
+          </button>
+        </div>
+        ${this.renderResultSection('Songs', this.itemsByType('track'))}
+        ${this.renderResultSection('Albums', this.itemsByType('album'))}
+        ${this.renderResultSection('Playlists', this.itemsByType('playlist'))}
+      </div>
+    `;
+  }
+
   private renderSpeakers(): TemplateResult {
     return html`
       <section class="speakers">
+        ${this.renderCurrentGroup()}
         ${this.renderGrouping()}
         <span class="section-title">Speaker Volume</span>
         <div class="speaker-list">
@@ -1318,7 +1567,17 @@ export class GammaSonosPlayerCard extends LitElement {
   private renderResults(): TemplateResult {
     return html`
       <div class="results">
-        ${this.searchResults.map((item) => {
+        ${this.renderResultSection('Artists', this.itemsByType('artist'), 'open')}
+        ${this.renderResultSection('Albums', this.itemsByType('album'))}
+        ${this.renderResultSection('Songs', this.itemsByType('track'))}
+        ${this.renderResultSection('Playlists', this.itemsByType('playlist'))}
+        ${this.renderResultSection('Radio', this.itemsByType('radio'))}
+        ${this.renderResultSection('Podcasts', this.itemsByType('podcast'))}
+      </div>
+    `;
+  }
+
+  private renderResultItem(item: SearchItem, action: 'open' | 'play' = 'play'): TemplateResult {
           const artist =
             item.artist ||
             item.artists?.map((entry) => entry.name).filter(Boolean).join(', ') ||
@@ -1338,26 +1597,27 @@ export class GammaSonosPlayerCard extends LitElement {
                 <span class="result-name">${item.name ?? item.uri ?? 'Untitled'}</span>
                 <span class="result-sub">${artist}</span>
               </div>
-              <span class="result-actions">
-                <button
-                  class="now"
-                  ?disabled=${this.playbackPending}
-                  @click=${() => this.playSearchResult(item, 'play')}
-                >
-                  Now
-                </button>
-                <button
-                  ?disabled=${this.playbackPending}
-                  @click=${() => this.playSearchResult(item, 'next')}
-                >
-                  Next
-                </button>
-              </span>
+              ${action === 'open'
+                ? html`<button class="small-action" @click=${() => this.openArtist(item)}>Open</button>`
+                : html`
+                    <span class="result-actions">
+                      <button
+                        class="now"
+                        ?disabled=${this.playbackPending}
+                        @click=${() => this.playSearchResult(item, 'play')}
+                      >
+                        Now
+                      </button>
+                      <button
+                        ?disabled=${this.playbackPending}
+                        @click=${() => this.playSearchResult(item, 'next')}
+                      >
+                        Next
+                      </button>
+                    </span>
+                  `}
             </div>
           `;
-        })}
-      </div>
-    `;
   }
 
   protected render(): TemplateResult {
@@ -1392,22 +1652,7 @@ export class GammaSonosPlayerCard extends LitElement {
             </div>
           </div>
           ${this.renderRooms()}
-          <div class="artwork" aria-label="Artwork"></div>
-          <div class="metadata">
-            <span class="track">${title}</span>
-            <span class="artist">${artist}</span>
-          </div>
-          <div class="controls">
-            <button class="icon-button" ?disabled=${unavailable} @click=${() => this.mediaService('media_previous_track', {}, this.playbackEntityId)}>
-              <ha-icon .icon=${'mdi:skip-previous'}></ha-icon>
-            </button>
-            <button class="play-button" ?disabled=${unavailable} @click=${this.playPause}>
-              <ha-icon .icon=${this.isPlaying ? 'mdi:pause' : 'mdi:play'}></ha-icon>
-            </button>
-            <button class="icon-button" ?disabled=${unavailable} @click=${() => this.mediaService('media_next_track', {}, this.playbackEntityId)}>
-              <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
-            </button>
-          </div>
+          ${this.renderMiniPlayer(title, artist, unavailable)}
           <div class="volume-row">
             <button class="icon-button" ?disabled=${unavailable} @click=${this.toggleMute}>
               <ha-icon .icon=${(this.isPlaying ? this.playbackPlayer : this.activePlayer)?.attributes.is_volume_muted ? 'mdi:volume-off' : 'mdi:volume-high'}></ha-icon>
