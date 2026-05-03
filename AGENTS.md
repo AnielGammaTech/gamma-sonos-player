@@ -9,7 +9,7 @@ This repo is a Home Assistant Lovelace custom card focused on Music Assistant se
 - Music search should use Music Assistant only. Spotify is assumed to be connected as a Music Assistant provider, not as a separate UI tab.
 - Speakers are controlled through Home Assistant media player services. The Speakers panel should make grouping explicit: select speakers, then apply grouping.
 - Per-speaker volume should be in a collapsed mixer by default so grouping stays readable.
-- Party mode should link/embed the Music Assistant Party plugin dashboard; that dashboard owns the QR code.
+- Party mode is deferred for now; keep the main card focused on reliable now-playing, search, and grouping.
 - Avoid making the card a clone of existing Sonos cards. Use other projects only as behavioral references.
 
 ## Enhancement Backlog
@@ -17,7 +17,7 @@ This repo is a Home Assistant Lovelace custom card focused on Music Assistant se
 - Smarter grouping: separate native Sonos and Music Assistant groups visually, auto-pick the MA version for mixed rooms, and label speaker compatibility.
 - Better browsing: artist pages should show top songs, albums, and playlists; album pages should support play album, shuffle, and play from a track.
 - Queue panel: use Music Assistant Queue Actions to show, reorder, remove, clear, play next, and jump to queue items.
-- Party mode: make the Party tab polished around the MA Party plugin QR/dashboard and add a one-tap party start flow for selected rooms.
+- Deferred party mode: later, make a separate Party panel around the MA Party plugin QR/dashboard and add a one-tap party start flow for selected rooms.
 - Now playing polish: larger responsive artwork, cleaner button states/icons, progress bar, elapsed/remaining time, and current source.
 - Performance: debounce search, cache artist/album results, render volume rows only when expanded, and avoid unnecessary recalculation on HA updates.
 - Configuration presets: Music Assistant mode, Sonos native mode, and mixed home mode.
@@ -134,18 +134,9 @@ Grouping is intentionally two-step:
 
 Do not return to immediate group-on-chip-click behavior.
 
-Native Sonos grouping only accepts Sonos entities. If the user mixes a native Sonos entity with Music Assistant/non-Sonos entities, resolve every selected room to its matching Music Assistant player before calling `media_player.join`. Matching is by `<entity>_2` first and then exact friendly name. If any selected room has no Music Assistant match, show a card error and do not call native Sonos join.
+Native Sonos grouping only accepts Sonos entities. Music Assistant can group a broader set of speakers, but only players exposed as compatible Music Assistant players can be grouped together. Some TVs, Cast endpoints, displays, or restored/unavailable players can play media but cannot join a synchronized group. Do not imply universal grouping.
 
-### Party Dashboard
-
-Music Assistant Party is exposed through Music Assistant's Party plugin dashboard. The card supports:
-
-```yaml
-show_party: true
-party_dashboard_url: /music-assistant/party
-```
-
-If the route changes in a user's HA install, they should paste the exact dashboard URL from the Music Assistant sidebar/plugin view into the visual editor or YAML.
+If the user mixes a native Sonos entity with Music Assistant/non-Sonos entities, resolve selected rooms to matching Music Assistant players before calling `media_player.join`. Matching is by `<entity>_2` first and then exact friendly name. If the main speaker has no Music Assistant match, show a card error and do not call native Sonos join.
 
 ## Player Discovery
 

@@ -42,7 +42,7 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 - Group and ungroup speakers with `media_player.join` and `media_player.unjoin`.
 - Search Music Assistant for songs, albums, artists, and playlists.
 - Tap a result to add it next with `music_assistant.play_media`.
-- Use the Speakers tab for room chips, grouping, ungrouping, and always-visible per-speaker volume.
+- Use the Speakers tab for grouping, ungrouping, and a collapsible per-speaker volume mixer.
 
 ## Options
 
@@ -58,8 +58,8 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 | `library_only` | `boolean` | `false` | Search only Music Assistant library items when true. |
 | `show_grouping` | `boolean` | `true` | Show group chips. |
 | `show_search` | `boolean` | `true` | Show search/play field. |
-| `width` | `string` | `420px` | Card width when `fill_container` is false. |
-| `fill_container` | `boolean` | `false` | Stretch to the full dashboard card/container width. |
+| `width` | `string` | `100%` | Card width when `fill_container` is false. |
+| `fill_container` | `boolean` | `true` | Stretch to the full dashboard card/container width. |
 | `compact` | `boolean` | `false` | Use a denser layout for narrow dashboard columns. |
 | `height` | `string` | `auto` | Minimum card height. Use a CSS length to force a taller card. |
 | `background` | `string` | `#101722` | Base background. |
@@ -68,3 +68,5 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 ## Notes
 
 Spotify should be configured as a Music Assistant music provider. This card uses Music Assistant for search/playback and Home Assistant media player services for transport, volume, and grouping.
+
+Not every speaker can be grouped. Native Sonos grouping only works with Sonos speakers, and mixed-room grouping depends on Music Assistant exposing compatible player entities for those rooms.
