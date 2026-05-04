@@ -3,7 +3,7 @@ import type { CSSResultGroup, TemplateResult } from 'lit';
 
 type EnqueueMode = 'replace' | 'play' | 'next' | 'add';
 type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
-type PanelTab = 'now' | 'search' | 'speakers';
+type PanelTab = 'now' | 'search' | 'queue' | 'speakers';
 type BrowserView = 'results' | 'artist' | 'album';
 
 type HassEntity = {
@@ -81,6 +81,13 @@ type SearchItem = {
   album?: { name?: string; image?: string };
   image?: string;
   thumb?: string;
+  queue_item_id?: string;
+};
+
+type QueueServiceAttempt = {
+  domain: string;
+  service: string;
+  data: Record<string, unknown>;
 };
 
 const DEFAULT_CONFIG: Required<
@@ -196,6 +203,9 @@ export class GammaSonosPlayerCard extends LitElement {
     selectedAlbum: { state: true },
     showVolumeMixer: { state: true },
     groupError: { state: true },
+    queueItems: { state: true },
+    queueLoading: { state: true },
+    queueError: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -216,6 +226,9 @@ export class GammaSonosPlayerCard extends LitElement {
   private selectedAlbum?: SearchItem;
   private showVolumeMixer = false;
   private groupError = '';
+  private queueItems: SearchItem[] = [];
+  private queueLoading = false;
+  private queueError = '';
 
   static get styles(): CSSResultGroup {
     return css`
@@ -370,11 +383,13 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .player.playing .now-artwork::after {
         background:
-          linear-gradient(180deg, rgb(255 255 255 / 8%), transparent 26%),
-          radial-gradient(circle at 50% 115%, rgb(0 0 0 / 34%), transparent 56%);
+          linear-gradient(180deg, rgb(255 255 255 / 5%), transparent 22%),
+          linear-gradient(0deg, rgb(0 0 0 / 12%), transparent 28%);
         border-radius: inherit;
         content: '';
         inset: 0;
+        mix-blend-mode: screen;
+        opacity: 0.14;
         pointer-events: none;
         position: absolute;
         z-index: 1;
@@ -382,6 +397,24 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .now-view .metadata {
         width: 100%;
+      }
+
+      .progress {
+        background: rgb(255 255 255 / 13%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 999px;
+        height: 6px;
+        overflow: hidden;
+        width: min(340px, 76%);
+      }
+
+      .progress-fill {
+        background: color-mix(in srgb, var(--primary-text-color, #f4f7fb) 58%, var(--gamma-sonos-accent) 42%);
+        border-radius: inherit;
+        box-shadow: 0 0 14px rgb(255 255 255 / 16%);
+        height: 100%;
+        min-width: 0;
+        transition: width 180ms ease;
       }
 
       .player::before {
@@ -500,11 +533,11 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .now-label {
         color: var(--secondary-text-color, #b7c0ce);
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 0.08em;
+        font-size: 12px;
+        font-weight: 650;
+        letter-spacing: 0;
         margin-bottom: -2px;
-        text-transform: uppercase;
+        text-transform: none;
       }
 
       .now-chip {
@@ -512,7 +545,7 @@ export class GammaSonosPlayerCard extends LitElement {
         border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent);
         border-radius: 999px;
         color: var(--primary-text-color, #f4f7fb);
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 750;
         min-height: 26px;
         padding: 0 9px;
@@ -668,12 +701,13 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .tabs {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
 
       .grouping,
       .search,
-      .speakers {
+      .speakers,
+      .queue {
         display: grid;
         gap: 10px;
       }
@@ -721,6 +755,19 @@ export class GammaSonosPlayerCard extends LitElement {
       .group-chip.active .group-check {
         background: var(--gamma-sonos-accent);
         color: #06100b;
+      }
+
+      .group-chip.anchor {
+        background: rgb(255 255 255 / 5%);
+        border-color: rgb(255 255 255 / 8%);
+        color: var(--secondary-text-color, #b7c0ce);
+        opacity: 0.72;
+      }
+
+      .group-chip.anchor .group-check {
+        background: transparent;
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 34%, rgb(255 255 255 / 10%));
+        color: var(--gamma-sonos-accent);
       }
 
       .group-name,
@@ -931,6 +978,21 @@ export class GammaSonosPlayerCard extends LitElement {
         padding: 8px 10px;
       }
 
+      .queue-header {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
+        min-width: 0;
+      }
+
+      .queue-list {
+        display: grid;
+        gap: 8px;
+        max-height: 420px;
+        overflow: auto;
+      }
+
       .small-action {
         appearance: none;
         background: rgb(255 255 255 / 7%);
@@ -1138,6 +1200,25 @@ export class GammaSonosPlayerCard extends LitElement {
   private get volume(): number {
     const player = this.isPlaying ? this.playbackPlayer : this.activePlayer;
     return Math.round(toNumber(player?.attributes.volume_level, 0) * 100);
+  }
+
+  private get progressPercent(): number {
+    const duration = toNumber(this.playbackPlayer?.attributes.media_duration, 0);
+    let position = toNumber(this.playbackPlayer?.attributes.media_position, 0);
+    const updatedAt = String(this.playbackPlayer?.attributes.media_position_updated_at ?? '');
+
+    if (duration <= 0 || position < 0) {
+      return 0;
+    }
+
+    if (this.isPlaying && updatedAt) {
+      const updatedTimestamp = Date.parse(updatedAt);
+      if (Number.isFinite(updatedTimestamp)) {
+        position += Math.max(0, (Date.now() - updatedTimestamp) / 1000);
+      }
+    }
+
+    return Math.max(0, Math.min(100, (position / duration) * 100));
   }
 
   private get groupMembers(): string[] {
@@ -1592,6 +1673,234 @@ export class GammaSonosPlayerCard extends LitElement {
     return items;
   }
 
+  private queueTargetEntityId(): string {
+    return (
+      this.matchingMusicAssistantPlayer(this.activePlayer)?.entity_id ??
+      this.activePlayer?.entity_id ??
+      this.activeEntityId
+    );
+  }
+
+  private queueServiceAttempts(entityId: string): QueueServiceAttempt[] {
+    const activeQueue = String(this.hass?.states[entityId]?.attributes.active_queue ?? '');
+
+    return [
+      {
+        domain: 'music_assistant',
+        service: 'get_queue',
+        data: { entity_id: entityId },
+      },
+      {
+        domain: 'mass_queue',
+        service: 'get_queue_items',
+        data: { entity: entityId, limit: 40, limit_before: 0, limit_after: 40 },
+      },
+      {
+        domain: 'mass_queue',
+        service: 'get_queue',
+        data: { entity: entityId, limit: 40, limit_before: 0, limit_after: 40 },
+      },
+      ...(activeQueue
+        ? [
+            {
+              domain: 'mass_queue',
+              service: 'get_queue_items',
+              data: { entity: entityId, queue_id: activeQueue, limit: 40, limit_before: 0, limit_after: 40 },
+            },
+            {
+              domain: 'music_assistant',
+              service: 'get_queue',
+              data: { queue_id: activeQueue },
+            },
+          ]
+        : []),
+    ];
+  }
+
+  private async refreshQueue(): Promise<void> {
+    const entityId = this.queueTargetEntityId();
+
+    if (!entityId || !this.hass?.callWS) {
+      this.queueError = 'Queue responses are not available in this Home Assistant view.';
+      return;
+    }
+
+    this.queueLoading = true;
+    this.queueError = '';
+
+    try {
+      let lastError = '';
+
+      for (const attempt of this.queueServiceAttempts(entityId)) {
+        try {
+          const response = await this.hass.callWS<Record<string, unknown>>({
+            type: 'call_service',
+            domain: attempt.domain,
+            service: attempt.service,
+            service_data: attempt.data,
+            return_response: true,
+          });
+          const items = this.extractQueueItems(response);
+
+          if (items.length > 0) {
+            this.queueItems = items;
+            return;
+          }
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : `${attempt.domain}.${attempt.service} failed.`;
+        }
+      }
+
+      this.queueItems = [];
+      this.queueError = lastError || 'Queue is empty or unavailable.';
+    } finally {
+      this.queueLoading = false;
+    }
+  }
+
+  private extractQueueItems(response: unknown): SearchItem[] {
+    const root = this.responsePayload(response);
+    const candidates = [
+      this.valueAtPath(root, ['items']),
+      this.valueAtPath(root, ['queue']),
+      this.valueAtPath(root, ['queue_items']),
+      this.valueAtPath(root, ['next_items']),
+      this.valueAtPath(root, ['upcoming_items']),
+      this.valueAtPath(root, ['response', 'items']),
+      this.valueAtPath(root, ['response', 'queue']),
+      this.valueAtPath(root, ['response', 'queue_items']),
+      this.valueAtPath(root, ['response', 'next_items']),
+      this.valueAtPath(root, ['response', 'upcoming_items']),
+      root,
+    ];
+
+    for (const candidate of candidates) {
+      const items = this.queueItemsFromUnknown(candidate);
+      if (items.length > 0) {
+        return this.dedupeQueueItems(items);
+      }
+    }
+
+    return [];
+  }
+
+  private responsePayload(response: unknown): unknown {
+    if (typeof response === 'object' && response && 'response' in response) {
+      const serviceResponse = (response as Record<string, unknown>).response;
+      return serviceResponse ?? response;
+    }
+
+    return response;
+  }
+
+  private valueAtPath(value: unknown, path: string[]): unknown {
+    return path.reduce<unknown>((current, key) => {
+      if (typeof current !== 'object' || !current) {
+        return undefined;
+      }
+
+      return (current as Record<string, unknown>)[key];
+    }, value);
+  }
+
+  private queueItemsFromUnknown(value: unknown): SearchItem[] {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => this.normalizeQueueItem(item))
+        .filter((item): item is SearchItem => Boolean(item));
+    }
+
+    if (typeof value === 'object' && value) {
+      const objectValue = value as Record<string, unknown>;
+      const nestedKeys = ['items', 'queue', 'queue_items', 'next_items', 'upcoming_items'];
+
+      for (const key of nestedKeys) {
+        const nestedItems = this.queueItemsFromUnknown(objectValue[key]);
+        if (nestedItems.length > 0) {
+          return nestedItems;
+        }
+      }
+
+      for (const nestedValue of Object.values(objectValue)) {
+        const nestedItems = this.queueItemsFromUnknown(nestedValue);
+        if (nestedItems.length > 0) {
+          return nestedItems;
+        }
+      }
+    }
+
+    return [];
+  }
+
+  private normalizeQueueItem(value: unknown): SearchItem | undefined {
+    if (typeof value !== 'object' || !value) {
+      return undefined;
+    }
+
+    const row = value as Record<string, unknown>;
+    const mediaItem =
+      (typeof row.media_item === 'object' && row.media_item
+        ? row.media_item as Record<string, unknown>
+        : undefined) ??
+      (typeof row.item === 'object' && row.item ? row.item as Record<string, unknown> : undefined) ??
+      row;
+    const album = typeof mediaItem.album === 'object' && mediaItem.album
+      ? mediaItem.album as { name?: string; image?: string }
+      : undefined;
+    const artists = Array.isArray(mediaItem.artists)
+      ? mediaItem.artists as Array<{ name?: string }>
+      : undefined;
+    const name = String(
+      mediaItem.name ??
+        row.name ??
+        row.title ??
+        row.media_title ??
+        '',
+    );
+    const uri = String(mediaItem.uri ?? row.uri ?? row.media_id ?? row.media_content_id ?? '');
+    const mediaType = String(mediaItem.media_type ?? row.media_type ?? row.type ?? 'track') as MediaType;
+    const image = String(
+      mediaItem.image ??
+        row.image ??
+        row.thumbnail ??
+        row.entity_picture ??
+        row.media_image ??
+        row.local_image_encoded ??
+        album?.image ??
+        '',
+    );
+
+    if (!name && !uri) {
+      return undefined;
+    }
+
+    return {
+      name: name || uri,
+      uri: uri || undefined,
+      media_type: mediaType,
+      type: mediaType,
+      artists,
+      artist: String(mediaItem.artist ?? row.artist ?? row.media_artist ?? ''),
+      album,
+      image: image || undefined,
+      queue_item_id: String(row.queue_item_id ?? mediaItem.queue_item_id ?? ''),
+    };
+  }
+
+  private dedupeQueueItems(items: SearchItem[]): SearchItem[] {
+    const seen = new Set<string>();
+
+    return items.filter((item) => {
+      const key = `${item.uri ?? ''}:${item.name ?? ''}:${item.artist ?? ''}`;
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    });
+  }
+
   private playSearchResult(item: SearchItem, enqueueOverride?: EnqueueMode): void {
     if (this.playbackPending) {
       return;
@@ -1650,7 +1959,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
     return html`
       <div class="rooms">
-        <span class="now-label">Now Playing On</span>
+        <span class="now-label">Playing in</span>
         <div class="now-row">
           <div class="now-speakers">
             ${nowPlaying.map(
@@ -1673,6 +1982,11 @@ export class GammaSonosPlayerCard extends LitElement {
                 const members = player?.attributes.group_members;
                 this.selectedGroupIds = Array.isArray(members) ? [...members] : [entityId];
                 this.pendingGroupIds = [];
+                this.queueItems = [];
+                this.queueError = '';
+                if (this.activeTab === 'queue') {
+                  void this.refreshQueue();
+                }
               }}
             >
               ${players.map(
@@ -1760,7 +2074,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
             return html`
 	              <button
-	                class="group-chip ${selected ? 'active' : ''}"
+	                class="group-chip ${selected ? 'active' : ''} ${isAnchor ? 'anchor' : ''}"
 	                ?disabled=${isAnchor || this.groupPending}
                 @click=${() => this.toggleGroupSelection(player.entity_id)}
               >
@@ -1768,7 +2082,7 @@ export class GammaSonosPlayerCard extends LitElement {
                 <span class="group-name">
                   ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
                 </span>
-                <span class="group-status">${isAnchor ? 'Main speaker' : inGroup ? 'In group' : pending ? 'Selected' : 'Tap to select'}</span>
+                <span class="group-status">${isAnchor ? 'Selected room' : inGroup ? 'In group' : pending ? 'Selected' : 'Tap to select'}</span>
               </button>
             `;
           })}
@@ -1868,6 +2182,15 @@ export class GammaSonosPlayerCard extends LitElement {
           Search
         </button>
         <button
+          class=${this.activeTab === 'queue' ? 'active' : ''}
+          @click=${() => {
+            this.activeTab = 'queue';
+            void this.refreshQueue();
+          }}
+        >
+          Queue
+        </button>
+        <button
           class=${this.activeTab === 'speakers' ? 'active' : ''}
           @click=${() => {
             this.activeTab = 'speakers';
@@ -1883,6 +2206,9 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <section class="now-view">
         <div class="now-artwork" aria-label="Current album artwork"></div>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${String(Math.round(this.progressPercent))}>
+          <div class="progress-fill" style=${`width: ${this.progressPercent}%`}></div>
+        </div>
         <div class="metadata">
           <span class="track">${title}</span>
           <span class="artist">${artist}</span>
@@ -1906,6 +2232,35 @@ export class GammaSonosPlayerCard extends LitElement {
             <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
           </button>
         </div>
+      </section>
+    `;
+  }
+
+  private renderQueue(): TemplateResult {
+    return html`
+      <section class="queue">
+        <div class="queue-header">
+          <span class="section-title">Queue</span>
+          <button
+            class="small-action"
+            ?disabled=${this.queueLoading}
+            @click=${() => this.refreshQueue()}
+          >
+            Refresh
+          </button>
+        </div>
+        ${this.queueLoading ? html`<div class="hint">Loading queue...</div>` : nothing}
+        ${this.queueError ? html`<div class="error">${this.queueError}</div>` : nothing}
+        ${!this.queueLoading && this.queueItems.length === 0 && !this.queueError
+          ? html`<div class="hint">Queue is empty or unavailable for this speaker.</div>`
+          : nothing}
+        ${this.queueItems.length > 0
+          ? html`
+              <div class="queue-list">
+                ${this.queueItems.map((item) => this.renderQueueItem(item))}
+              </div>
+            `
+          : nothing}
       </section>
     `;
   }
@@ -2170,6 +2525,43 @@ export class GammaSonosPlayerCard extends LitElement {
           `;
   }
 
+  private renderQueueItem(item: SearchItem): TemplateResult {
+    const artist =
+      item.artist ||
+      item.artists?.map((entry) => entry.name).filter(Boolean).join(', ') ||
+      item.album?.name ||
+      item.media_type ||
+      item.type ||
+      '';
+    const image = item.image || item.thumb || item.album?.image || '';
+
+    return html`
+      <div class="result">
+        <div
+          class="result-art"
+          style=${image ? `background-image: url("${image}")` : ''}
+        ></div>
+        <div class="result-main">
+          <span class="result-name">${item.name ?? item.uri ?? 'Untitled'}</span>
+          <span class="result-sub">${artist}</span>
+        </div>
+        ${item.uri
+          ? html`
+              <span class="result-actions">
+                <button
+                  class="now"
+                  ?disabled=${this.playbackPending}
+                  @click=${() => this.playSearchResult(item, 'play')}
+                >
+                  Play
+                </button>
+              </span>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
   protected render(): TemplateResult {
     if (!this.config) {
       return html``;
@@ -2226,7 +2618,9 @@ export class GammaSonosPlayerCard extends LitElement {
 	            ? this.renderNowPlaying(title, artist, unavailable)
 	            : this.activeTab === 'search'
 	              ? this.renderSearch()
-	              : this.renderSpeakers()}
+	              : this.activeTab === 'queue'
+	                ? this.renderQueue()
+	                : this.renderSpeakers()}
         </div>
       </ha-card>
     `;
