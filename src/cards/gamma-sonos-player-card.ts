@@ -468,6 +468,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .topbar {
+        align-items: start;
         gap: 10px;
         justify-content: space-between;
       }
@@ -576,7 +577,7 @@ export class GammaSonosPlayerCard extends LitElement {
         border-radius: 999px;
         display: inline-flex;
         gap: 6px;
-        justify-self: start;
+        justify-self: end;
         min-width: 0;
         padding: 4px 8px;
       }
@@ -1105,6 +1106,11 @@ export class GammaSonosPlayerCard extends LitElement {
         min-width: 0;
       }
 
+      .topbar .session-strip {
+        justify-content: flex-end;
+        max-width: min(360px, 48%);
+      }
+
       .session-chip {
         align-items: center;
         background: rgb(255 255 255 / 4%);
@@ -1115,6 +1121,19 @@ export class GammaSonosPlayerCard extends LitElement {
         min-height: 26px;
         min-width: 0;
         padding: 0 9px;
+      }
+
+      .topbar .session-chip {
+        background: rgb(255 255 255 / 3%);
+        min-height: 24px;
+      }
+
+      .top-controls {
+        align-items: end;
+        display: grid;
+        gap: 8px;
+        justify-items: end;
+        min-width: 0;
       }
 
       .session-chip span {
@@ -2262,7 +2281,6 @@ export class GammaSonosPlayerCard extends LitElement {
               `,
             )}
           </div>
-          ${players.length > 1 ? this.renderPlayerPicker(players) : nothing}
         </div>
       </div>
     `;
@@ -2328,6 +2346,15 @@ export class GammaSonosPlayerCard extends LitElement {
           <span>Queue</span>
           <strong>${queueLabel}</strong>
         </div>
+      </div>
+    `;
+  }
+
+  private renderTopControls(): TemplateResult {
+    return html`
+      <div class="top-controls">
+        ${this.allPlayers.length > 1 ? this.renderPlayerPicker(this.allPlayers) : nothing}
+        ${this.renderSessionStrip()}
       </div>
     `;
   }
@@ -2946,9 +2973,9 @@ export class GammaSonosPlayerCard extends LitElement {
               <span class="name">${this.config.name || this.activeName || 'Sonos'}</span>
               <span class="state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
             </div>
+            ${this.renderTopControls()}
           </div>
           ${this.renderRooms()}
-          ${this.renderSessionStrip()}
           ${this.renderMiniPlayer(title, artist, unavailable)}
           <div class="volume-row">
             <button class="icon-button" ?disabled=${unavailable} @click=${this.toggleMute}>

@@ -3,7 +3,7 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const j = globalThis, Y = j.ShadowRoot && (j.ShadyCSS === void 0 || j.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, J = Symbol(), et = /* @__PURE__ */ new WeakMap();
+const O = globalThis, Y = O.ShadowRoot && (O.ShadyCSS === void 0 || O.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, J = Symbol(), et = /* @__PURE__ */ new WeakMap();
 let gt = class {
   constructor(t, e, s) {
     if (this._$cssResult$ = !0, s !== J) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
@@ -32,7 +32,7 @@ const xt = (n) => new gt(typeof n == "string" ? n : n + "", void 0, J), mt = (n,
 }, $t = (n, t) => {
   if (Y) n.adoptedStyleSheets = t.map((e) => e instanceof CSSStyleSheet ? e : e.styleSheet);
   else for (const e of t) {
-    const s = document.createElement("style"), i = j.litNonce;
+    const s = document.createElement("style"), i = O.litNonce;
     i !== void 0 && s.setAttribute("nonce", i), s.textContent = e.cssText, n.appendChild(s);
   }
 }, st = Y ? (n) => n : (n) => n instanceof CSSStyleSheet ? ((t) => {
@@ -506,7 +506,7 @@ class zt {
 }
 const Q = T.litHtmlPolyfillSupport;
 Q == null || Q(N, G), (T.litHtmlVersions ?? (T.litHtmlVersions = [])).push("3.3.2");
-const Ot = (n, t, e) => {
+const jt = (n, t, e) => {
   const s = (e == null ? void 0 : e.renderBefore) ?? t;
   let i = s._$litPart$;
   if (i === void 0) {
@@ -532,7 +532,7 @@ class E extends S {
   }
   update(t) {
     const e = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = Ot(e, this.renderRoot, this.renderOptions);
+    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = jt(e, this.renderRoot, this.renderOptions);
   }
   connectedCallback() {
     var t;
@@ -564,7 +564,7 @@ const b = {
   show_queue_hint: !0,
   background: "#101722",
   accent_color: "#39d98a"
-}, jt = 524288, O = "gamma-sonos-player:last-player", ht = "gamma-sonos-player:playback-memory";
+}, Ot = 524288, j = "gamma-sonos-player:last-player", ht = "gamma-sonos-player:playback-memory";
 function $(n, t) {
   if (typeof n == "number" && Number.isFinite(n))
     return n;
@@ -575,7 +575,7 @@ function x(n) {
   return !n || n.state === "unavailable" || n.state === "unknown";
 }
 function Lt(n) {
-  return !!($(n == null ? void 0 : n.attributes.supported_features, 0) & jt) || Array.isArray(n == null ? void 0 : n.attributes.group_members);
+  return !!($(n == null ? void 0 : n.attributes.supported_features, 0) & Ot) || Array.isArray(n == null ? void 0 : n.attributes.group_members);
 }
 function f(n) {
   const t = String((n == null ? void 0 : n.attributes.app_id) ?? "").toLowerCase(), e = String((n == null ? void 0 : n.attributes.platform) ?? "").toLowerCase(), s = String((n == null ? void 0 : n.attributes.source) ?? "").toLowerCase(), i = Array.isArray(n == null ? void 0 : n.attributes.source_list) ? n.attributes.source_list.join(" ").toLowerCase() : "";
@@ -822,6 +822,7 @@ const X = class X extends E {
       }
 
       .topbar {
+        align-items: start;
         gap: 10px;
         justify-content: space-between;
       }
@@ -930,7 +931,7 @@ const X = class X extends E {
         border-radius: 999px;
         display: inline-flex;
         gap: 6px;
-        justify-self: start;
+        justify-self: end;
         min-width: 0;
         padding: 4px 8px;
       }
@@ -1459,6 +1460,11 @@ const X = class X extends E {
         min-width: 0;
       }
 
+      .topbar .session-strip {
+        justify-content: flex-end;
+        max-width: min(360px, 48%);
+      }
+
       .session-chip {
         align-items: center;
         background: rgb(255 255 255 / 4%);
@@ -1469,6 +1475,19 @@ const X = class X extends E {
         min-height: 26px;
         min-width: 0;
         padding: 0 9px;
+      }
+
+      .topbar .session-chip {
+        background: rgb(255 255 255 / 3%);
+        min-height: 24px;
+      }
+
+      .top-controls {
+        align-items: end;
+        display: grid;
+        gap: 8px;
+        justify-items: end;
+        min-width: 0;
       }
 
       .session-chip span {
@@ -1531,7 +1550,7 @@ const X = class X extends E {
     return document.createElement("gamma-sonos-player-card-editor");
   }
   setConfig(t) {
-    this.config = { ...b, ...t }, this.selectedEntityId = this.config.entity || window.localStorage.getItem(O) || "", this.playbackMemory = this.readPlaybackMemory(), this.style.setProperty(
+    this.config = { ...b, ...t }, this.selectedEntityId = this.config.entity || window.localStorage.getItem(j) || "", this.playbackMemory = this.readPlaybackMemory(), this.style.setProperty(
       "--gamma-sonos-width",
       this.config.fill_container ? "100%" : this.config.width ?? b.width
     ), this.style.setProperty("--gamma-sonos-height", this.config.height ?? b.height), this.style.setProperty(
@@ -1795,7 +1814,7 @@ const X = class X extends E {
     }, {
       entity_id: s.anchor.entity_id
     }), a = () => {
-      this.selectedEntityId = s.anchor.entity_id, this.selectedGroupIds = [s.anchor.entity_id, ...i], this.pendingGroupIds = [], window.localStorage.setItem(O, s.anchor.entity_id);
+      this.selectedEntityId = s.anchor.entity_id, this.selectedGroupIds = [s.anchor.entity_id, ...i], this.pendingGroupIds = [], window.localStorage.setItem(j, s.anchor.entity_id);
     };
     if (r && typeof r.then == "function") {
       r.then(a).catch((c) => {
@@ -2074,7 +2093,7 @@ const X = class X extends E {
     if (!s)
       return;
     const i = e ?? this.config.enqueue_mode ?? b.enqueue_mode, r = e === "next" ? "next" : this.isPlaying || i !== "next" ? i : "play", a = this.matchingMusicAssistantPlayer(this.activePlayer) ?? this.activePlayer, c = (a == null ? void 0 : a.entity_id) ?? this.activeEntityId;
-    this.playbackPending = !0, window.localStorage.setItem(O, c), this.selectedEntityId = c;
+    this.playbackPending = !0, window.localStorage.setItem(j, c), this.selectedEntityId = c;
     const o = t.media_type || t.type, u = {
       media_id: s,
       media_type: o,
@@ -2152,7 +2171,6 @@ const X = class X extends E {
               `
     )}
           </div>
-          ${t.length > 1 ? this.renderPlayerPicker(t) : d}
         </div>
       </div>
     `;
@@ -2166,7 +2184,7 @@ const X = class X extends E {
           @change=${(e) => {
       var a;
       const s = e.target.value, i = (a = this.hass) == null ? void 0 : a.states[s];
-      this.selectedEntityId = s, window.localStorage.setItem(O, s);
+      this.selectedEntityId = s, window.localStorage.setItem(j, s);
       const r = i == null ? void 0 : i.attributes.group_members;
       this.selectedGroupIds = Array.isArray(r) ? [...r] : [s], this.pendingGroupIds = [], this.queueItems = [], this.queueError = "", this.activeTab === "queue" && this.refreshQueue();
     }}
@@ -2204,6 +2222,14 @@ const X = class X extends E {
           <span>Queue</span>
           <strong>${s}</strong>
         </div>
+      </div>
+    `;
+  }
+  renderTopControls() {
+    return l`
+      <div class="top-controls">
+        ${this.allPlayers.length > 1 ? this.renderPlayerPicker(this.allPlayers) : d}
+        ${this.renderSessionStrip()}
       </div>
     `;
   }
@@ -2685,9 +2711,9 @@ const X = class X extends E {
               <span class="name">${this.config.name || this.activeName || "Sonos"}</span>
               <span class="state">${i ? "Unavailable" : P((t == null ? void 0 : t.state) ?? "idle")}</span>
             </div>
+            ${this.renderTopControls()}
           </div>
           ${this.renderRooms()}
-          ${this.renderSessionStrip()}
           ${this.renderMiniPlayer(a, c, i)}
           <div class="volume-row">
             <button class="icon-button" ?disabled=${i} @click=${this.toggleMute}>
