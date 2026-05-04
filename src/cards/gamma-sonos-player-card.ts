@@ -90,6 +90,14 @@ type QueueServiceAttempt = {
   data: Record<string, unknown>;
 };
 
+type PlaybackMemory = {
+  title?: string;
+  artist?: string;
+  artwork?: string;
+  state?: string;
+  updatedAt: number;
+};
+
 const DEFAULT_CONFIG: Required<
   Pick<
     GammaSonosPlayerConfig,
@@ -123,6 +131,7 @@ const DEFAULT_CONFIG: Required<
 
 const MEDIA_PLAYER_GROUPING_FEATURE = 524288;
 const LAST_PLAYER_STORAGE_KEY = 'gamma-sonos-player:last-player';
+const PLAYBACK_MEMORY_STORAGE_KEY = 'gamma-sonos-player:playback-memory';
 
 function toNumber(value: unknown, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -207,6 +216,7 @@ export class GammaSonosPlayerCard extends LitElement {
     queueItems: { state: true },
     queueLoading: { state: true },
     queueError: { state: true },
+    playbackMemory: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -231,6 +241,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private queueItems: SearchItem[] = [];
   private queueLoading = false;
   private queueError = '';
+  private playbackMemory: Record<string, PlaybackMemory> = {};
 
   static get styles(): CSSResultGroup {
     return css`
@@ -1172,6 +1183,7 @@ export class GammaSonosPlayerCard extends LitElement {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.selectedEntityId =
       this.config.entity || window.localStorage.getItem(LAST_PLAYER_STORAGE_KEY) || '';
+    this.playbackMemory = this.readPlaybackMemory();
     this.style.setProperty(
       '--gamma-sonos-width',
       this.config.fill_container ? '100%' : this.config.width ?? DEFAULT_CONFIG.width,
@@ -1185,6 +1197,10 @@ export class GammaSonosPlayerCard extends LitElement {
       '--gamma-sonos-accent',
       this.config.accent_color ?? DEFAULT_CONFIG.accent_color,
     );
+  }
+
+  protected updated(): void {
+    this.rememberPlaybackState();
   }
 
   public getCardSize(): number {
@@ -1310,7 +1326,12 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get playbackPlayer(): HassEntity | undefined {
-    return this.currentlyPlayingPlayer;
+    const active = this.activePlayer;
+
+    return this.currentlyPlayingPlayer ??
+      (active && (active.attributes.media_title || active.attributes.entity_picture || active.attributes.entity_picture_local)
+        ? active
+        : undefined);
   }
 
   private get playbackEntityId(): string {
@@ -1326,12 +1347,17 @@ export class GammaSonosPlayerCard extends LitElement {
       this.playbackPlayer?.attributes.entity_picture ||
         this.playbackPlayer?.attributes.entity_picture_local ||
         this.playbackPlayer?.attributes.media_image_url ||
+        this.activeMemory?.artwork ||
         '',
     );
   }
 
   private get isPlaying(): boolean {
     return this.playbackPlayer?.state === 'playing';
+  }
+
+  private get activeMemory(): PlaybackMemory | undefined {
+    return this.playbackMemory[this.activeEntityId];
   }
 
   private get volume(): number {
@@ -1356,6 +1382,58 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     return Math.max(0, Math.min(100, (position / duration) * 100));
+  }
+
+  private readPlaybackMemory(): Record<string, PlaybackMemory> {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(PLAYBACK_MEMORY_STORAGE_KEY) || '{}');
+      return typeof parsed === 'object' && parsed ? parsed as Record<string, PlaybackMemory> : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private writePlaybackMemory(memory: Record<string, PlaybackMemory>): void {
+    try {
+      window.localStorage.setItem(PLAYBACK_MEMORY_STORAGE_KEY, JSON.stringify(memory));
+    } catch {
+      // Local storage can be disabled in private browsing; the card still works without memory.
+    }
+  }
+
+  private rememberPlaybackState(): void {
+    const player = this.activePlayer;
+    const title = String(player?.attributes.media_title ?? '');
+    const artist = String(
+      player?.attributes.media_artist ||
+        player?.attributes.media_album_name ||
+        player?.attributes.source ||
+        '',
+    );
+    const artwork = String(
+      player?.attributes.entity_picture ||
+        player?.attributes.entity_picture_local ||
+        player?.attributes.media_image_url ||
+        '',
+    );
+
+    if (!player || (!title && !artwork)) {
+      return;
+    }
+
+    const nextMemory = {
+      ...this.playbackMemory,
+      [player.entity_id]: {
+        title,
+        artist,
+        artwork,
+        state: player.state,
+        updatedAt: Date.now(),
+      },
+    };
+
+    this.playbackMemory = nextMemory;
+    this.writePlaybackMemory(nextMemory);
   }
 
   private get groupMembers(): string[] {
@@ -2064,11 +2142,18 @@ export class GammaSonosPlayerCard extends LitElement {
     this.playbackPending = true;
     window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, targetEntityId);
     this.selectedEntityId = targetEntityId;
-    const result = this.service('music_assistant', 'play_media', {
+    const mediaType = item.media_type || item.type;
+    const serviceData: Record<string, unknown> = {
       media_id: mediaId,
-      media_type: item.media_type || item.type,
+      media_type: mediaType,
       enqueue,
-    }, {
+    };
+
+    if (enqueue === 'play' && mediaType === 'track') {
+      serviceData.radio_mode = true;
+    }
+
+    const result = this.service('music_assistant', 'play_media', serviceData, {
       entity_id: targetEntityId,
     });
 
@@ -2078,7 +2163,7 @@ export class GammaSonosPlayerCard extends LitElement {
           if (enqueue === 'next') {
             const fallback = this.service('music_assistant', 'play_media', {
               media_id: mediaId,
-              media_type: item.media_type || item.type,
+              media_type: mediaType,
               enqueue: 'add',
             }, {
               entity_id: targetEntityId,
@@ -2832,13 +2917,15 @@ export class GammaSonosPlayerCard extends LitElement {
 
     const player = this.playbackPlayer;
     const controlPlayer = this.activePlayer;
+    const memory = this.activeMemory;
     const unavailable = isUnavailable(controlPlayer);
     const cover = this.artworkUrl ? `url("${this.artworkUrl}")` : 'none';
-    const title = player?.attributes.media_title || 'No music selected';
+    const title = player?.attributes.media_title || memory?.title || 'No music selected';
     const artist =
       player?.attributes.media_artist ||
       player?.attributes.media_album_name ||
       player?.attributes.source ||
+      memory?.artist ||
       'Ready';
 
     return html`
