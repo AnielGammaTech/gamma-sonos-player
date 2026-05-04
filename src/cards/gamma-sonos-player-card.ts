@@ -342,10 +342,9 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .now-artwork {
         aspect-ratio: 1;
-        background:
-          radial-gradient(circle, rgb(255 255 255 / 9%), transparent 70%),
-          rgb(255 255 255 / 5%);
+        background-color: rgb(255 255 255 / 5%);
         background-image: var(--gamma-sonos-cover);
+        background-blend-mode: normal;
         background-position: center;
         background-size: cover;
         border: 1px solid rgb(255 255 255 / 10%);
@@ -354,15 +353,19 @@ export class GammaSonosPlayerCard extends LitElement {
           inset 0 1px 0 rgb(255 255 255 / 12%),
           0 18px 34px rgb(0 0 0 / 24%);
         isolation: isolate;
+        filter: none;
         max-width: min(340px, 76%);
+        opacity: 1;
         position: relative;
         width: min(340px, 76%);
       }
 
       .player.playing .now-artwork {
+        background-blend-mode: normal;
         border-color: rgb(255 255 255 / 14%);
+        filter: none;
+        opacity: 1;
         box-shadow:
-          inset 0 1px 0 rgb(255 255 255 / 16%),
           0 22px 46px rgb(0 0 0 / 30%);
       }
 
@@ -1983,7 +1986,10 @@ export class GammaSonosPlayerCard extends LitElement {
             >
               ${players.map(
                 (player) => html`
-                  <option .value=${player.entity_id}>
+                  <option
+                    .value=${player.entity_id}
+                    ?selected=${player.entity_id === this.activeEntityId}
+                  >
                     ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
                   </option>
                 `,
