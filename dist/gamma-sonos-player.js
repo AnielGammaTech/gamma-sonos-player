@@ -1452,33 +1452,38 @@ const X = class X extends E {
       }
 
       .session-strip {
-        display: grid;
-        gap: 8px;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-width: 0;
       }
 
       .session-chip {
-        background: rgb(255 255 255 / 5%);
-        border: 1px solid rgb(255 255 255 / 8%);
-        border-radius: 12px;
-        display: grid;
-        gap: 2px;
+        align-items: center;
+        background: rgb(255 255 255 / 4%);
+        border: 1px solid rgb(255 255 255 / 7%);
+        border-radius: 999px;
+        display: inline-flex;
+        gap: 6px;
+        min-height: 26px;
         min-width: 0;
-        padding: 8px 10px;
+        padding: 0 9px;
       }
 
       .session-chip span {
         color: var(--secondary-text-color, #b7c0ce);
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 800;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
       }
 
       .session-chip strong {
         color: var(--primary-text-color, #f4f7fb);
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 780;
+        max-width: 120px;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
