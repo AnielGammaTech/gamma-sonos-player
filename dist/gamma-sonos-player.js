@@ -749,17 +749,8 @@ const X = class X extends S {
       }
 
       .player.playing .now-artwork::after {
-        background:
-          linear-gradient(180deg, rgb(255 255 255 / 5%), transparent 22%),
-          linear-gradient(0deg, rgb(0 0 0 / 12%), transparent 28%);
-        border-radius: inherit;
         content: '';
-        inset: 0;
-        mix-blend-mode: screen;
-        opacity: 0.14;
-        pointer-events: none;
-        position: absolute;
-        z-index: 1;
+        display: none;
       }
 
       .now-view .metadata {
@@ -1761,19 +1752,14 @@ const X = class X extends S {
     const t = String(((i = (s = this.hass) == null ? void 0 : s.states[e]) == null ? void 0 : i.attributes.active_queue) ?? "");
     return [
       {
-        domain: "music_assistant",
-        service: "get_queue",
-        data: { entity_id: e }
-      },
-      {
         domain: "mass_queue",
         service: "get_queue_items",
         data: { entity: e, limit: 40, limit_before: 0, limit_after: 40 }
       },
       {
-        domain: "mass_queue",
+        domain: "music_assistant",
         service: "get_queue",
-        data: { entity: e, limit: 40, limit_before: 0, limit_after: 40 }
+        data: { entity_id: e }
       },
       ...t ? [
         {
@@ -1798,7 +1784,7 @@ const X = class X extends S {
     }
     this.queueLoading = !0, this.queueError = "";
     try {
-      let s = "";
+      const s = [];
       for (const i of this.queueServiceAttempts(e))
         try {
           const r = await this.hass.callWS({
@@ -1808,14 +1794,14 @@ const X = class X extends S {
             service_data: i.data,
             return_response: !0
           }), a = this.extractQueueItems(r);
-          if (a.length > 0) {
+          if (i.domain === "mass_queue" && (s.length = 0), a.length > 0) {
             this.queueItems = a;
             return;
           }
         } catch (r) {
-          s = r instanceof Error ? r.message : `${i.domain}.${i.service} failed.`;
+          s.push(r instanceof Error ? r.message : `${i.domain}.${i.service} failed.`);
         }
-      this.queueItems = [], this.queueError = s || "Queue is empty or unavailable.";
+      this.queueItems = [], this.queueError = s.length > 0 ? s[s.length - 1] : "Queue is empty or unavailable for this Music Assistant player.";
     } finally {
       this.queueLoading = !1;
     }

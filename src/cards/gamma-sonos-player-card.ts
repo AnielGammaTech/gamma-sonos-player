@@ -382,17 +382,8 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .player.playing .now-artwork::after {
-        background:
-          linear-gradient(180deg, rgb(255 255 255 / 5%), transparent 22%),
-          linear-gradient(0deg, rgb(0 0 0 / 12%), transparent 28%);
-        border-radius: inherit;
         content: '';
-        inset: 0;
-        mix-blend-mode: screen;
-        opacity: 0.14;
-        pointer-events: none;
-        position: absolute;
-        z-index: 1;
+        display: none;
       }
 
       .now-view .metadata {
@@ -1686,19 +1677,14 @@ export class GammaSonosPlayerCard extends LitElement {
 
     return [
       {
-        domain: 'music_assistant',
-        service: 'get_queue',
-        data: { entity_id: entityId },
-      },
-      {
         domain: 'mass_queue',
         service: 'get_queue_items',
         data: { entity: entityId, limit: 40, limit_before: 0, limit_after: 40 },
       },
       {
-        domain: 'mass_queue',
+        domain: 'music_assistant',
         service: 'get_queue',
-        data: { entity: entityId, limit: 40, limit_before: 0, limit_after: 40 },
+        data: { entity_id: entityId },
       },
       ...(activeQueue
         ? [
@@ -1729,7 +1715,7 @@ export class GammaSonosPlayerCard extends LitElement {
     this.queueError = '';
 
     try {
-      let lastError = '';
+      const errors: string[] = [];
 
       for (const attempt of this.queueServiceAttempts(entityId)) {
         try {
@@ -1742,17 +1728,23 @@ export class GammaSonosPlayerCard extends LitElement {
           });
           const items = this.extractQueueItems(response);
 
+          if (attempt.domain === 'mass_queue') {
+            errors.length = 0;
+          }
+
           if (items.length > 0) {
             this.queueItems = items;
             return;
           }
         } catch (error) {
-          lastError = error instanceof Error ? error.message : `${attempt.domain}.${attempt.service} failed.`;
+          errors.push(error instanceof Error ? error.message : `${attempt.domain}.${attempt.service} failed.`);
         }
       }
 
       this.queueItems = [];
-      this.queueError = lastError || 'Queue is empty or unavailable.';
+      this.queueError = errors.length > 0
+        ? errors[errors.length - 1]
+        : 'Queue is empty or unavailable for this Music Assistant player.';
     } finally {
       this.queueLoading = false;
     }
