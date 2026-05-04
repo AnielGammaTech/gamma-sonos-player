@@ -778,43 +778,79 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .group-chip.action {
-        min-height: 56px;
+        align-items: center;
+        border-radius: 18px;
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 14%),
+          0 12px 24px rgb(0 0 0 / 16%);
+        color: var(--primary-text-color, #f4f7fb);
+        gap: 8px;
+        min-height: 64px;
+        padding: 10px 12px;
       }
 
       .group-chip.action.continue {
-        background: color-mix(in srgb, #5d8cff 16%, rgb(255 255 255 / 5%));
-        border-color: color-mix(in srgb, #8ab0ff 28%, transparent);
+        background:
+          radial-gradient(circle at 18% 50%, rgb(138 176 255 / 34%), transparent 28%),
+          linear-gradient(135deg, rgb(42 65 108 / 86%), rgb(31 38 58 / 92%));
+        border-color: rgb(138 176 255 / 58%);
       }
 
       .group-chip.action.group {
-        background: color-mix(in srgb, var(--gamma-sonos-accent) 20%, rgb(255 255 255 / 5%));
-        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 34%, transparent);
+        background:
+          radial-gradient(circle at 18% 50%, color-mix(in srgb, var(--gamma-sonos-accent) 42%, transparent), transparent 28%),
+          linear-gradient(135deg, color-mix(in srgb, var(--gamma-sonos-accent) 30%, #15251d), rgb(24 42 32 / 94%));
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 62%, transparent);
       }
 
       .group-chip.action.ungroup {
-        background: color-mix(in srgb, #ffb36b 12%, rgb(255 255 255 / 5%));
-        border-color: color-mix(in srgb, #ffb36b 28%, transparent);
+        background:
+          radial-gradient(circle at 18% 50%, rgb(255 179 107 / 32%), transparent 28%),
+          linear-gradient(135deg, rgb(82 58 39 / 88%), rgb(48 38 33 / 94%));
+        border-color: rgb(255 179 107 / 60%);
       }
 
       .group-chip.action.clear {
-        background: color-mix(in srgb, #ff6f6f 12%, rgb(255 255 255 / 5%));
-        border-color: color-mix(in srgb, #ff8b8b 28%, transparent);
+        background:
+          radial-gradient(circle at 18% 50%, rgb(255 111 111 / 32%), transparent 28%),
+          linear-gradient(135deg, rgb(83 40 46 / 88%), rgb(50 34 39 / 94%));
+        border-color: rgb(255 139 139 / 60%);
       }
 
       .group-chip.action.continue .group-check {
-        background: #8ab0ff;
+        background: linear-gradient(145deg, #b8ccff, #769dff);
         color: #07111f;
       }
 
       .group-chip.action.group .group-check {
-        background: var(--gamma-sonos-accent);
+        background: linear-gradient(145deg, color-mix(in srgb, var(--gamma-sonos-accent) 72%, #ffffff), var(--gamma-sonos-accent));
         color: #06100b;
       }
 
       .group-chip.action.ungroup .group-check,
       .group-chip.action.clear .group-check {
-        background: rgb(255 255 255 / 8%);
-        color: #ffd1c4;
+        background: linear-gradient(145deg, rgb(255 255 255 / 20%), rgb(0 0 0 / 12%));
+        color: #ffffff;
+      }
+
+      .group-chip.action .group-check {
+        border: 0;
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 32%),
+          0 8px 16px rgb(0 0 0 / 18%);
+        font-size: 18px;
+        font-weight: 900;
+        height: 34px;
+        width: 34px;
+      }
+
+      .group-chip.action .group-name {
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .group-chip.action .group-status {
+        color: rgb(255 255 255 / 68%);
       }
 
       .group-name,
@@ -835,8 +871,18 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .group-actions {
         display: grid;
-        gap: 8px;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .group-actions .continue,
+      .group-actions .group {
+        grid-column: span 1;
+      }
+
+      .group-actions .ungroup,
+      .group-actions .clear {
+        min-height: 54px;
       }
 
       .speaker-list {
@@ -1038,6 +1084,40 @@ export class GammaSonosPlayerCard extends LitElement {
         gap: 8px;
         max-height: 420px;
         overflow: auto;
+      }
+
+      .session-strip {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .session-chip {
+        background: rgb(255 255 255 / 5%);
+        border: 1px solid rgb(255 255 255 / 8%);
+        border-radius: 12px;
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+        padding: 8px 10px;
+      }
+
+      .session-chip span {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .session-chip strong {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 12px;
+        font-weight: 780;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .small-action {
@@ -1968,7 +2048,11 @@ export class GammaSonosPlayerCard extends LitElement {
 
     const configuredEnqueue =
       enqueueOverride ?? this.config.enqueue_mode ?? DEFAULT_CONFIG.enqueue_mode;
-    const enqueue = this.isPlaying || configuredEnqueue !== 'next' ? configuredEnqueue : 'play';
+    const enqueue = enqueueOverride === 'next'
+      ? 'next'
+      : this.isPlaying || configuredEnqueue !== 'next'
+        ? configuredEnqueue
+        : 'play';
     const targetPlayer = this.matchingMusicAssistantPlayer(this.activePlayer) ?? this.activePlayer;
     const targetEntityId = targetPlayer?.entity_id ?? this.activeEntityId;
 
@@ -1986,16 +2070,78 @@ export class GammaSonosPlayerCard extends LitElement {
     if (result && typeof result.then === 'function') {
       result
         .catch((error: unknown) => {
+          if (enqueue === 'next') {
+            const fallback = this.service('music_assistant', 'play_media', {
+              media_id: mediaId,
+              media_type: item.media_type || item.type,
+              enqueue: 'add',
+            }, {
+              entity_id: targetEntityId,
+            });
+
+            if (fallback && typeof fallback.then === 'function') {
+              return fallback.catch((fallbackError: unknown) => {
+                this.playbackError = fallbackError instanceof Error
+                  ? fallbackError.message
+                  : 'Music Assistant queue add failed.';
+              });
+            }
+
+            return undefined;
+          }
+
           this.playbackError = error instanceof Error ? error.message : 'Music Assistant playback failed.';
+          return undefined;
         })
         .finally(() => {
           this.playbackPending = false;
+          if (enqueue === 'next' || this.activeTab === 'queue') {
+            void this.refreshQueue();
+          }
         });
       return;
     }
 
     window.setTimeout(() => {
       this.playbackPending = false;
+      if (enqueue === 'next' || this.activeTab === 'queue') {
+        void this.refreshQueue();
+      }
+    }, 900);
+  }
+
+  private playQueueItem(item: SearchItem): void {
+    const queueItemId = item.queue_item_id;
+    const entityId = this.queueTargetEntityId();
+
+    if (!queueItemId || !entityId || this.playbackPending) {
+      this.playSearchResult(item, 'play');
+      return;
+    }
+
+    this.playbackPending = true;
+    this.playbackError = '';
+
+    const result = this.service('mass_queue', 'play_queue_item', {
+      entity: entityId,
+      queue_item_id: queueItemId,
+    });
+
+    if (result && typeof result.then === 'function') {
+      result
+        .catch((error: unknown) => {
+          this.playbackError = error instanceof Error ? error.message : 'Queue item playback failed.';
+        })
+        .finally(() => {
+          this.playbackPending = false;
+          window.setTimeout(() => this.refreshQueue(), 500);
+        });
+      return;
+    }
+
+    window.setTimeout(() => {
+      this.playbackPending = false;
+      void this.refreshQueue();
     }, 900);
   }
 
@@ -2065,6 +2211,34 @@ export class GammaSonosPlayerCard extends LitElement {
           )}
         </select>
       </label>
+    `;
+  }
+
+  private renderSessionStrip(): TemplateResult {
+    const source = String(
+      this.activePlayer?.attributes.source ||
+        this.activePlayer?.attributes.app_id ||
+        this.activePlayer?.attributes.active_queue ||
+        'Ready',
+    );
+    const groupSize = Math.max(1, this.groupMembers.length);
+    const queueLabel = this.queueItems.length > 0 ? `${this.queueItems.length} items` : 'Open queue';
+
+    return html`
+      <div class="session-strip">
+        <div class="session-chip">
+          <span>Source</span>
+          <strong>${source}</strong>
+        </div>
+        <div class="session-chip">
+          <span>Group</span>
+          <strong>${groupSize > 1 ? `${groupSize} rooms` : 'Solo'}</strong>
+        </div>
+        <div class="session-chip">
+          <span>Queue</span>
+          <strong>${queueLabel}</strong>
+        </div>
+      </div>
     `;
   }
 
@@ -2617,7 +2791,7 @@ export class GammaSonosPlayerCard extends LitElement {
     const image = item.image || item.thumb || item.album?.image || '';
 
     return html`
-      <div class="result">
+      <div class="result clickable" @click=${() => this.playQueueItem(item)}>
         <div
           class="result-art"
           style=${image ? `background-image: url("${image}")` : ''}
@@ -2632,7 +2806,10 @@ export class GammaSonosPlayerCard extends LitElement {
                 <button
                   class="now"
                   ?disabled=${this.playbackPending}
-                  @click=${() => this.playSearchResult(item, 'play')}
+                  @click=${(event: Event) => {
+                    event.stopPropagation();
+                    this.playQueueItem(item);
+                  }}
                 >
                   Play
                 </button>
@@ -2679,6 +2856,7 @@ export class GammaSonosPlayerCard extends LitElement {
             </div>
           </div>
           ${this.renderRooms()}
+          ${this.renderSessionStrip()}
           ${this.renderMiniPlayer(title, artist, unavailable)}
           <div class="volume-row">
             <button class="icon-button" ?disabled=${unavailable} @click=${this.toggleMute}>
