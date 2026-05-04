@@ -255,10 +255,10 @@ export class GammaSonosPlayerCard extends LitElement {
         box-sizing: border-box;
         color: var(--primary-text-color, #f4f7fb);
         display: grid;
-        gap: clamp(10px, 2.2vw, 14px);
+        gap: clamp(8px, 1.8vw, 12px);
         min-height: var(--gamma-sonos-height);
         overflow: hidden;
-        padding: clamp(12px, 3vw, 18px);
+        padding: clamp(12px, 2.6vw, 16px);
         position: relative;
         width: 100%;
         max-width: 100%;
@@ -286,11 +286,11 @@ export class GammaSonosPlayerCard extends LitElement {
         align-items: center;
         background: rgb(255 255 255 / 6%);
         border: 1px solid rgb(255 255 255 / 9%);
-        border-radius: 16px;
+        border-radius: 14px;
         display: grid;
         gap: 10px;
-        grid-template-columns: 54px minmax(0, 1fr) auto;
-        padding: 8px;
+        grid-template-columns: 48px minmax(0, 1fr) auto;
+        padding: 7px;
       }
 
       .player.now-active .mini-player {
@@ -323,7 +323,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .now-view {
         display: grid;
-        gap: 14px;
+        gap: 10px;
         justify-items: center;
       }
 
@@ -336,35 +336,48 @@ export class GammaSonosPlayerCard extends LitElement {
         background-position: center;
         background-size: cover;
         border: 1px solid rgb(255 255 255 / 10%);
-        border-radius: 22px;
+        border-radius: 18px;
         box-shadow:
           inset 0 1px 0 rgb(255 255 255 / 12%),
           0 18px 34px rgb(0 0 0 / 24%);
-        max-width: min(360px, 82%);
+        isolation: isolate;
+        max-width: min(340px, 76%);
         position: relative;
-        width: min(360px, 82%);
+        width: min(340px, 76%);
       }
 
       .player.playing .now-artwork {
-        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 38%, rgb(255 255 255 / 12%));
+        border-color: rgb(255 255 255 / 14%);
         box-shadow:
           inset 0 1px 0 rgb(255 255 255 / 16%),
-          inset 0 -24px 52px color-mix(in srgb, var(--gamma-sonos-accent) 18%, transparent),
-          0 22px 46px rgb(0 0 0 / 30%),
-          0 0 54px color-mix(in srgb, var(--gamma-sonos-accent) 28%, transparent);
+          0 22px 46px rgb(0 0 0 / 30%);
+      }
+
+      .player.playing .now-artwork::before {
+        background-image: var(--gamma-sonos-cover);
+        background-position: center;
+        background-size: cover;
+        border-radius: inherit;
+        content: '';
+        filter: blur(28px) saturate(1.35);
+        inset: -28px;
+        opacity: 0.54;
+        pointer-events: none;
+        position: absolute;
+        transform: scale(1.02);
+        z-index: -1;
       }
 
       .player.playing .now-artwork::after {
         background:
-          linear-gradient(180deg, transparent 44%, color-mix(in srgb, var(--gamma-sonos-accent) 32%, transparent)),
-          radial-gradient(circle at 50% 104%, color-mix(in srgb, var(--gamma-sonos-accent) 34%, transparent), transparent 58%);
+          linear-gradient(180deg, rgb(255 255 255 / 8%), transparent 26%),
+          radial-gradient(circle at 50% 115%, rgb(0 0 0 / 34%), transparent 56%);
         border-radius: inherit;
         content: '';
         inset: 0;
-        mix-blend-mode: screen;
-        opacity: 0.58;
         pointer-events: none;
         position: absolute;
+        z-index: 1;
       }
 
       .now-view .metadata {
@@ -415,7 +428,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .name {
-        font-size: clamp(14px, 3.4vw, 16px);
+        font-size: clamp(18px, 3.8vw, 24px);
         font-weight: 750;
         line-height: 1.1;
         overflow: hidden;
@@ -425,7 +438,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .state {
         color: var(--secondary-text-color, #b7c0ce);
-        font-size: 12px;
+        font-size: 13px;
         line-height: 1.2;
       }
 
@@ -443,7 +456,7 @@ export class GammaSonosPlayerCard extends LitElement {
         border: 0;
         border-radius: 0;
         display: grid;
-        gap: 8px;
+        gap: 6px;
         grid-template-columns: 1fr;
         padding: 0;
       }
@@ -487,7 +500,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .now-label {
         color: var(--secondary-text-color, #b7c0ce);
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.08em;
         margin-bottom: -2px;
@@ -501,8 +514,8 @@ export class GammaSonosPlayerCard extends LitElement {
         color: var(--primary-text-color, #f4f7fb);
         font-size: 12px;
         font-weight: 750;
-        min-height: 28px;
-        padding: 0 10px;
+        min-height: 26px;
+        padding: 0 9px;
       }
 
       .player-picker {
@@ -514,7 +527,7 @@ export class GammaSonosPlayerCard extends LitElement {
         gap: 6px;
         justify-self: start;
         min-width: 0;
-        padding: 5px 9px;
+        padding: 4px 8px;
       }
 
       .player-picker select {
@@ -558,12 +571,12 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .metadata {
         display: grid;
-        gap: 5px;
+        gap: 4px;
         text-align: center;
       }
 
       .track {
-        font-size: clamp(18px, 4.8vw, 22px);
+        font-size: clamp(20px, 4.8vw, 28px);
         font-weight: 800;
         line-height: 1.12;
         overflow: hidden;
@@ -573,7 +586,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .artist {
         color: var(--secondary-text-color, #b7c0ce);
-        font-size: 14px;
+        font-size: clamp(13px, 3.3vw, 16px);
         line-height: 1.2;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -581,7 +594,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .controls {
-        gap: 14px;
+        gap: 12px;
         justify-content: center;
       }
 
@@ -606,8 +619,8 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .icon-button {
-        height: clamp(38px, 9vw, 44px);
-        width: clamp(38px, 9vw, 44px);
+        height: clamp(36px, 8.5vw, 42px);
+        width: clamp(36px, 8.5vw, 42px);
       }
 
       .play-button {
@@ -621,8 +634,8 @@ export class GammaSonosPlayerCard extends LitElement {
           inset 0 -12px 20px rgb(0 0 0 / 12%),
           0 0 28px color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent),
           0 12px 24px rgb(0 0 0 / 20%);
-        height: clamp(50px, 12vw, 58px);
-        width: clamp(50px, 12vw, 58px);
+        height: clamp(48px, 11vw, 56px);
+        width: clamp(48px, 11vw, 56px);
       }
 
       .icon-button:active,
@@ -643,7 +656,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .volume-row {
-        gap: 10px;
+        gap: 9px;
         min-width: 0;
       }
 
@@ -1032,6 +1045,37 @@ export class GammaSonosPlayerCard extends LitElement {
     });
   }
 
+  private roomKey(player: HassEntity): string {
+    return String(player.attributes.friendly_name ?? player.entity_id)
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+  }
+
+  private preferredRoomPlayer(current: HassEntity, candidate: HassEntity): HassEntity {
+    if (isMusicAssistantPlayer(candidate) && !isMusicAssistantPlayer(current)) {
+      return candidate;
+    }
+
+    if (!isUnavailable(candidate) && isUnavailable(current)) {
+      return candidate;
+    }
+
+    return current;
+  }
+
+  private dedupeRoomPlayers(players: HassEntity[]): HassEntity[] {
+    const byRoom = new Map<string, HassEntity>();
+
+    players.forEach((player) => {
+      const key = this.roomKey(player);
+      const existing = byRoom.get(key);
+      byRoom.set(key, existing ? this.preferredRoomPlayer(existing, player) : player);
+    });
+
+    return [...byRoom.values()];
+  }
+
   private get allPlayers(): HassEntity[] {
     const configured = [
       ...(this.config.entities ?? []),
@@ -1046,10 +1090,10 @@ export class GammaSonosPlayerCard extends LitElement {
         .map((player) => this.matchingMusicAssistantPlayer(player))
         .filter((player): player is HassEntity => Boolean(player));
 
-      return this.dedupePlayers([...configuredPlayers, ...musicAssistantMatches]);
+      return this.dedupeRoomPlayers(this.dedupePlayers([...configuredPlayers, ...musicAssistantMatches]));
     }
 
-    return this.mediaPlayers.filter((entity) => this.isDiscoverablePlayer(entity));
+    return this.dedupeRoomPlayers(this.mediaPlayers.filter((entity) => this.isDiscoverablePlayer(entity)));
   }
 
   private get activePlayer(): HassEntity | undefined {
