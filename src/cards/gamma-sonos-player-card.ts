@@ -480,12 +480,13 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .name {
-        font-size: clamp(18px, 3.8vw, 24px);
+        font-size: clamp(17px, 3.3vw, 24px);
         font-weight: 750;
         line-height: 1.1;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
+        white-space: normal;
+        word-break: break-word;
       }
 
       .state {
@@ -1098,36 +1099,6 @@ export class GammaSonosPlayerCard extends LitElement {
         overflow: auto;
       }
 
-      .session-strip {
-        align-items: center;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        min-width: 0;
-      }
-
-      .topbar .session-strip {
-        justify-content: flex-end;
-        max-width: min(360px, 48%);
-      }
-
-      .session-chip {
-        align-items: center;
-        background: rgb(255 255 255 / 4%);
-        border: 1px solid rgb(255 255 255 / 7%);
-        border-radius: 999px;
-        display: inline-flex;
-        gap: 6px;
-        min-height: 26px;
-        min-width: 0;
-        padding: 0 9px;
-      }
-
-      .topbar .session-chip {
-        background: rgb(255 255 255 / 3%);
-        min-height: 24px;
-      }
-
       .top-controls {
         align-items: end;
         display: grid;
@@ -1136,23 +1107,27 @@ export class GammaSonosPlayerCard extends LitElement {
         min-width: 0;
       }
 
-      .session-chip span {
-        color: var(--secondary-text-color, #b7c0ce);
-        font-size: 9px;
-        font-weight: 800;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-
-      .session-chip strong {
+      .next-up {
+        align-self: end;
         color: var(--primary-text-color, #f4f7fb);
-        font-size: 11px;
-        font-weight: 780;
-        max-width: 120px;
+        display: block;
+        font-size: 12px;
+        font-weight: 720;
+        line-height: 1.2;
+        max-width: min(310px, 48vw);
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .next-up span {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        margin-right: 5px;
+        text-transform: uppercase;
       }
 
       .small-action {
@@ -2322,39 +2297,19 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
-  private renderSessionStrip(): TemplateResult {
-    const source = String(
-      this.activePlayer?.attributes.source ||
-        this.activePlayer?.attributes.app_id ||
-        this.activePlayer?.attributes.active_queue ||
-        'Ready',
-    );
-    const groupSize = Math.max(1, this.groupMembers.length);
-    const queueLabel = this.queueItems.length > 0 ? `${this.queueItems.length} items` : 'Open queue';
-
-    return html`
-      <div class="session-strip">
-        <div class="session-chip">
-          <span>Source</span>
-          <strong>${source}</strong>
-        </div>
-        <div class="session-chip">
-          <span>Group</span>
-          <strong>${groupSize > 1 ? `${groupSize} rooms` : 'Solo'}</strong>
-        </div>
-        <div class="session-chip">
-          <span>Queue</span>
-          <strong>${queueLabel}</strong>
-        </div>
-      </div>
-    `;
-  }
-
   private renderTopControls(): TemplateResult {
+    const nextItem = this.queueItems[0];
+
     return html`
       <div class="top-controls">
         ${this.allPlayers.length > 1 ? this.renderPlayerPicker(this.allPlayers) : nothing}
-        ${this.renderSessionStrip()}
+        ${nextItem
+          ? html`
+              <div class="next-up">
+                <span>Next</span>${nextItem.name ?? nextItem.uri ?? 'Queue item'}
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }

@@ -45,7 +45,7 @@ const xt = (n) => new gt(typeof n == "string" ? n : n + "", void 0, J), mt = (n,
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: wt, defineProperty: kt, getOwnPropertyDescriptor: At, getOwnPropertyNames: Pt, getOwnPropertySymbols: St, getPrototypeOf: Et } = Object, v = globalThis, it = v.trustedTypes, It = it ? it.emptyScript : "", V = v.reactiveElementPolyfillSupport, C = (n, t) => n, W = { toAttribute(n, t) {
+const { is: wt, defineProperty: kt, getOwnPropertyDescriptor: At, getOwnPropertyNames: Pt, getOwnPropertySymbols: Et, getPrototypeOf: St } = Object, v = globalThis, it = v.trustedTypes, It = it ? it.emptyScript : "", V = v.reactiveElementPolyfillSupport, q = (n, t) => n, W = { toAttribute(n, t) {
   switch (t) {
     case Boolean:
       n = n ? It : null;
@@ -75,7 +75,7 @@ const { is: wt, defineProperty: kt, getOwnPropertyDescriptor: At, getOwnProperty
   return e;
 } }, bt = (n, t) => !wt(n, t), rt = { attribute: !0, type: String, converter: W, reflect: !1, useDefault: !1, hasChanged: bt };
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), v.litPropertyMetadata ?? (v.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let S = class extends HTMLElement {
+let E = class extends HTMLElement {
   static addInitializer(t) {
     this._$Ei(), (this.l ?? (this.l = [])).push(t);
   }
@@ -103,14 +103,14 @@ let S = class extends HTMLElement {
     return this.elementProperties.get(t) ?? rt;
   }
   static _$Ei() {
-    if (this.hasOwnProperty(C("elementProperties"))) return;
-    const t = Et(this);
+    if (this.hasOwnProperty(q("elementProperties"))) return;
+    const t = St(this);
     t.finalize(), t.l !== void 0 && (this.l = [...t.l]), this.elementProperties = new Map(t.elementProperties);
   }
   static finalize() {
-    if (this.hasOwnProperty(C("finalized"))) return;
-    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(C("properties"))) {
-      const e = this.properties, s = [...Pt(e), ...St(e)];
+    if (this.hasOwnProperty(q("finalized"))) return;
+    if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(q("properties"))) {
+      const e = this.properties, s = [...Pt(e), ...Et(e)];
       for (const i of s) this.createProperty(i, e[i]);
     }
     const t = this[Symbol.metadata];
@@ -278,28 +278,28 @@ let S = class extends HTMLElement {
   firstUpdated(t) {
   }
 };
-S.elementStyles = [], S.shadowRootOptions = { mode: "open" }, S[C("elementProperties")] = /* @__PURE__ */ new Map(), S[C("finalized")] = /* @__PURE__ */ new Map(), V == null || V({ ReactiveElement: S }), (v.reactiveElementVersions ?? (v.reactiveElementVersions = [])).push("2.1.2");
+E.elementStyles = [], E.shadowRootOptions = { mode: "open" }, E[q("elementProperties")] = /* @__PURE__ */ new Map(), E[q("finalized")] = /* @__PURE__ */ new Map(), V == null || V({ ReactiveElement: E }), (v.reactiveElementVersions ?? (v.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const T = globalThis, at = (n) => n, L = T.trustedTypes, nt = L ? L.createPolicy("lit-html", { createHTML: (n) => n }) : void 0, ft = "$lit$", y = `lit$${Math.random().toFixed(9).slice(2)}$`, yt = "?" + y, Mt = `<${yt}>`, A = document, R = () => A.createComment(""), U = (n) => n === null || typeof n != "object" && typeof n != "function", Z = Array.isArray, qt = (n) => Z(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function", H = `[ 	
-\f\r]`, q = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ot = /-->/g, ct = />/g, _ = RegExp(`>|${H}(?:([^\\s"'>=/]+)(${H}*=${H}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), lt = /'/g, ut = /"/g, vt = /^(?:script|style|textarea|title)$/i, Ct = (n) => (t, ...e) => ({ _$litType$: n, strings: t, values: e }), l = Ct(1), I = Symbol.for("lit-noChange"), d = Symbol.for("lit-nothing"), dt = /* @__PURE__ */ new WeakMap(), w = A.createTreeWalker(A, 129);
+const T = globalThis, at = (n) => n, L = T.trustedTypes, nt = L ? L.createPolicy("lit-html", { createHTML: (n) => n }) : void 0, ft = "$lit$", y = `lit$${Math.random().toFixed(9).slice(2)}$`, yt = "?" + y, Mt = `<${yt}>`, A = document, R = () => A.createComment(""), U = (n) => n === null || typeof n != "object" && typeof n != "function", Z = Array.isArray, Ct = (n) => Z(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function", H = `[ 	
+\f\r]`, C = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ot = /-->/g, ct = />/g, _ = RegExp(`>|${H}(?:([^\\s"'>=/]+)(${H}*=${H}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), lt = /'/g, ut = /"/g, vt = /^(?:script|style|textarea|title)$/i, qt = (n) => (t, ...e) => ({ _$litType$: n, strings: t, values: e }), l = qt(1), I = Symbol.for("lit-noChange"), d = Symbol.for("lit-nothing"), dt = /* @__PURE__ */ new WeakMap(), w = A.createTreeWalker(A, 129);
 function _t(n, t) {
   if (!Z(n) || !n.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return nt !== void 0 ? nt.createHTML(t) : t;
 }
 const Tt = (n, t) => {
   const e = n.length - 1, s = [];
-  let i, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", a = q;
+  let i, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", a = C;
   for (let c = 0; c < e; c++) {
     const o = n[c];
     let u, p, h = -1, g = 0;
-    for (; g < o.length && (a.lastIndex = g, p = a.exec(o), p !== null); ) g = a.lastIndex, a === q ? p[1] === "!--" ? a = ot : p[1] !== void 0 ? a = ct : p[2] !== void 0 ? (vt.test(p[2]) && (i = RegExp("</" + p[2], "g")), a = _) : p[3] !== void 0 && (a = _) : a === _ ? p[0] === ">" ? (a = i ?? q, h = -1) : p[1] === void 0 ? h = -2 : (h = a.lastIndex - p[2].length, u = p[1], a = p[3] === void 0 ? _ : p[3] === '"' ? ut : lt) : a === ut || a === lt ? a = _ : a === ot || a === ct ? a = q : (a = _, i = void 0);
+    for (; g < o.length && (a.lastIndex = g, p = a.exec(o), p !== null); ) g = a.lastIndex, a === C ? p[1] === "!--" ? a = ot : p[1] !== void 0 ? a = ct : p[2] !== void 0 ? (vt.test(p[2]) && (i = RegExp("</" + p[2], "g")), a = _) : p[3] !== void 0 && (a = _) : a === _ ? p[0] === ">" ? (a = i ?? C, h = -1) : p[1] === void 0 ? h = -2 : (h = a.lastIndex - p[2].length, u = p[1], a = p[3] === void 0 ? _ : p[3] === '"' ? ut : lt) : a === ut || a === lt ? a = _ : a === ot || a === ct ? a = C : (a = _, i = void 0);
     const m = a === _ && n[c + 1].startsWith("/>") ? " " : "";
-    r += a === q ? o + Mt : h >= 0 ? (s.push(u), o.slice(0, h) + ft + o.slice(h) + y + m) : o + y + (h === -2 ? c : m);
+    r += a === C ? o + Mt : h >= 0 ? (s.push(u), o.slice(0, h) + ft + o.slice(h) + y + m) : o + y + (h === -2 ? c : m);
   }
   return [_t(n, r + (n[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), s];
 };
@@ -395,7 +395,7 @@ class G {
     return this._$AB;
   }
   _$AI(t, e = this) {
-    t = M(this, t, e), U(t) ? t === d || t == null || t === "" ? (this._$AH !== d && this._$AR(), this._$AH = d) : t !== this._$AH && t !== I && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : qt(t) ? this.k(t) : this._(t);
+    t = M(this, t, e), U(t) ? t === d || t == null || t === "" ? (this._$AH !== d && this._$AR(), this._$AH = d) : t !== this._$AH && t !== I && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Ct(t) ? this.k(t) : this._(t);
   }
   O(t) {
     return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -521,7 +521,7 @@ const jt = (n, t, e) => {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const k = globalThis;
-class E extends S {
+class S extends E {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
@@ -547,9 +547,9 @@ class E extends S {
   }
 }
 var pt;
-E._$litElement$ = !0, E.finalized = !0, (pt = k.litElementHydrateSupport) == null || pt.call(k, { LitElement: E });
+S._$litElement$ = !0, S.finalized = !0, (pt = k.litElementHydrateSupport) == null || pt.call(k, { LitElement: S });
 const D = k.litElementPolyfillSupport;
-D == null || D({ LitElement: E });
+D == null || D({ LitElement: S });
 (k.litElementVersions ?? (k.litElementVersions = [])).push("4.2.2");
 const b = {
   width: "100%",
@@ -593,7 +593,7 @@ function Bt(n, t) {
     })
   );
 }
-const X = class X extends E {
+const X = class X extends S {
   constructor() {
     super(...arguments), this.selectedEntityId = "", this.activeTab = "now", this.query = "", this.searching = !1, this.searchError = "", this.playbackError = "", this.searchResults = [], this.selectedGroupIds = [], this.pendingGroupIds = [], this.playbackPending = !1, this.groupPending = !1, this.browserView = "results", this.showVolumeMixer = !1, this.showCurrentGroup = !1, this.groupError = "", this.queueItems = [], this.queueLoading = !1, this.queueError = "", this.playbackMemory = {};
   }
@@ -834,12 +834,13 @@ const X = class X extends E {
       }
 
       .name {
-        font-size: clamp(18px, 3.8vw, 24px);
+        font-size: clamp(17px, 3.3vw, 24px);
         font-weight: 750;
         line-height: 1.1;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
+        white-space: normal;
+        word-break: break-word;
       }
 
       .state {
@@ -1452,36 +1453,6 @@ const X = class X extends E {
         overflow: auto;
       }
 
-      .session-strip {
-        align-items: center;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        min-width: 0;
-      }
-
-      .topbar .session-strip {
-        justify-content: flex-end;
-        max-width: min(360px, 48%);
-      }
-
-      .session-chip {
-        align-items: center;
-        background: rgb(255 255 255 / 4%);
-        border: 1px solid rgb(255 255 255 / 7%);
-        border-radius: 999px;
-        display: inline-flex;
-        gap: 6px;
-        min-height: 26px;
-        min-width: 0;
-        padding: 0 9px;
-      }
-
-      .topbar .session-chip {
-        background: rgb(255 255 255 / 3%);
-        min-height: 24px;
-      }
-
       .top-controls {
         align-items: end;
         display: grid;
@@ -1490,23 +1461,27 @@ const X = class X extends E {
         min-width: 0;
       }
 
-      .session-chip span {
-        color: var(--secondary-text-color, #b7c0ce);
-        font-size: 9px;
-        font-weight: 800;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-
-      .session-chip strong {
+      .next-up {
+        align-self: end;
         color: var(--primary-text-color, #f4f7fb);
-        font-size: 11px;
-        font-weight: 780;
-        max-width: 120px;
+        display: block;
+        font-size: 12px;
+        font-weight: 720;
+        line-height: 1.2;
+        max-width: min(310px, 48vw);
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .next-up span {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        margin-right: 5px;
+        text-transform: uppercase;
       }
 
       .small-action {
@@ -2203,33 +2178,16 @@ const X = class X extends E {
       </label>
     `;
   }
-  renderSessionStrip() {
-    var i, r, a;
-    const t = String(
-      ((i = this.activePlayer) == null ? void 0 : i.attributes.source) || ((r = this.activePlayer) == null ? void 0 : r.attributes.app_id) || ((a = this.activePlayer) == null ? void 0 : a.attributes.active_queue) || "Ready"
-    ), e = Math.max(1, this.groupMembers.length), s = this.queueItems.length > 0 ? `${this.queueItems.length} items` : "Open queue";
-    return l`
-      <div class="session-strip">
-        <div class="session-chip">
-          <span>Source</span>
-          <strong>${t}</strong>
-        </div>
-        <div class="session-chip">
-          <span>Group</span>
-          <strong>${e > 1 ? `${e} rooms` : "Solo"}</strong>
-        </div>
-        <div class="session-chip">
-          <span>Queue</span>
-          <strong>${s}</strong>
-        </div>
-      </div>
-    `;
-  }
   renderTopControls() {
+    const t = this.queueItems[0];
     return l`
       <div class="top-controls">
         ${this.allPlayers.length > 1 ? this.renderPlayerPicker(this.allPlayers) : d}
-        ${this.renderSessionStrip()}
+        ${t ? l`
+              <div class="next-up">
+                <span>Next</span>${t.name ?? t.uri ?? "Queue item"}
+              </div>
+            ` : d}
       </div>
     `;
   }
@@ -2763,7 +2721,7 @@ X.properties = {
 };
 let F = X;
 customElements.get("gamma-sonos-player-card") || customElements.define("gamma-sonos-player-card", F);
-const tt = class tt extends E {
+const tt = class tt extends S {
   constructor() {
     super(...arguments), this.config = {};
   }
