@@ -280,6 +280,7 @@ export class GammaSonosPlayerCard extends LitElement {
           0 0 54px color-mix(in srgb, var(--gamma-sonos-accent) 9%, transparent);
         box-sizing: border-box;
         color: var(--primary-text-color, #f4f7fb);
+        container-type: inline-size;
         display: grid;
         gap: clamp(8px, 1.8vw, 12px);
         min-height: var(--gamma-sonos-height);
@@ -469,8 +470,10 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .topbar {
         align-items: start;
+        display: grid;
         gap: 10px;
-        justify-content: space-between;
+        grid-template-columns: minmax(0, 1fr) auto;
+        justify-content: initial;
       }
 
       .title {
@@ -480,19 +483,22 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .name {
-        font-size: clamp(17px, 3.3vw, 24px);
+        font-size: 18px;
         font-weight: 750;
         line-height: 1.1;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: normal;
-        word-break: break-word;
+        white-space: nowrap;
+        word-break: normal;
       }
 
       .state {
         color: var(--secondary-text-color, #b7c0ce);
         font-size: 13px;
         line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .rooms,
@@ -591,9 +597,11 @@ export class GammaSonosPlayerCard extends LitElement {
         font: inherit;
         font-size: 12px;
         font-weight: 750;
-        max-width: 260px;
+        max-width: 150px;
         min-width: 0;
         outline: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .room.active,
@@ -1107,6 +1115,33 @@ export class GammaSonosPlayerCard extends LitElement {
         min-width: 0;
       }
 
+      @container (max-width: 340px) {
+        .topbar {
+          gap: 6px;
+        }
+
+        .name {
+          font-size: 16px;
+        }
+
+        .state {
+          font-size: 12px;
+        }
+
+        .top-controls {
+          gap: 6px;
+        }
+
+        .player-picker {
+          gap: 4px;
+          padding: 4px 6px;
+        }
+
+        .player-picker select {
+          max-width: 88px;
+        }
+      }
+
       .next-up {
         align-self: end;
         color: var(--primary-text-color, #f4f7fb);
@@ -1412,6 +1447,17 @@ export class GammaSonosPlayerCard extends LitElement {
     );
 
     if (!player || (!title && !artwork)) {
+      return;
+    }
+
+    const existing = this.playbackMemory[player.entity_id];
+    if (
+      existing &&
+      existing.title === title &&
+      existing.artist === artist &&
+      existing.artwork === artwork &&
+      existing.state === player.state
+    ) {
       return;
     }
 

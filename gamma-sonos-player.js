@@ -296,10 +296,10 @@ const Tt = (n, t) => {
   let i, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", a = C;
   for (let c = 0; c < e; c++) {
     const o = n[c];
-    let u, p, h = -1, g = 0;
-    for (; g < o.length && (a.lastIndex = g, p = a.exec(o), p !== null); ) g = a.lastIndex, a === C ? p[1] === "!--" ? a = ot : p[1] !== void 0 ? a = ct : p[2] !== void 0 ? (vt.test(p[2]) && (i = RegExp("</" + p[2], "g")), a = _) : p[3] !== void 0 && (a = _) : a === _ ? p[0] === ">" ? (a = i ?? C, h = -1) : p[1] === void 0 ? h = -2 : (h = a.lastIndex - p[2].length, u = p[1], a = p[3] === void 0 ? _ : p[3] === '"' ? ut : lt) : a === ut || a === lt ? a = _ : a === ot || a === ct ? a = C : (a = _, i = void 0);
+    let u, h, p = -1, g = 0;
+    for (; g < o.length && (a.lastIndex = g, h = a.exec(o), h !== null); ) g = a.lastIndex, a === C ? h[1] === "!--" ? a = ot : h[1] !== void 0 ? a = ct : h[2] !== void 0 ? (vt.test(h[2]) && (i = RegExp("</" + h[2], "g")), a = _) : h[3] !== void 0 && (a = _) : a === _ ? h[0] === ">" ? (a = i ?? C, p = -1) : h[1] === void 0 ? p = -2 : (p = a.lastIndex - h[2].length, u = h[1], a = h[3] === void 0 ? _ : h[3] === '"' ? ut : lt) : a === ut || a === lt ? a = _ : a === ot || a === ct ? a = C : (a = _, i = void 0);
     const m = a === _ && n[c + 1].startsWith("/>") ? " " : "";
-    r += a === C ? o + Mt : h >= 0 ? (s.push(u), o.slice(0, h) + ft + o.slice(h) + y + m) : o + y + (h === -2 ? c : m);
+    r += a === C ? o + Mt : p >= 0 ? (s.push(u), o.slice(0, p) + ft + o.slice(p) + y + m) : o + y + (p === -2 ? c : m);
   }
   return [_t(n, r + (n[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), s];
 };
@@ -308,29 +308,29 @@ class N {
     let i;
     this.parts = [];
     let r = 0, a = 0;
-    const c = t.length - 1, o = this.parts, [u, p] = Tt(t, e);
+    const c = t.length - 1, o = this.parts, [u, h] = Tt(t, e);
     if (this.el = N.createElement(u, s), w.currentNode = this.el.content, e === 2 || e === 3) {
-      const h = this.el.content.firstChild;
-      h.replaceWith(...h.childNodes);
+      const p = this.el.content.firstChild;
+      p.replaceWith(...p.childNodes);
     }
     for (; (i = w.nextNode()) !== null && o.length < c; ) {
       if (i.nodeType === 1) {
-        if (i.hasAttributes()) for (const h of i.getAttributeNames()) if (h.endsWith(ft)) {
-          const g = p[a++], m = i.getAttribute(h).split(y), z = /([.?@])?(.*)/.exec(g);
-          o.push({ type: 1, index: r, name: z[2], strings: m, ctor: z[1] === "." ? Ut : z[1] === "?" ? Nt : z[1] === "@" ? Gt : B }), i.removeAttribute(h);
-        } else h.startsWith(y) && (o.push({ type: 6, index: r }), i.removeAttribute(h));
+        if (i.hasAttributes()) for (const p of i.getAttributeNames()) if (p.endsWith(ft)) {
+          const g = h[a++], m = i.getAttribute(p).split(y), G = /([.?@])?(.*)/.exec(g);
+          o.push({ type: 1, index: r, name: G[2], strings: m, ctor: G[1] === "." ? Ut : G[1] === "?" ? Nt : G[1] === "@" ? zt : B }), i.removeAttribute(p);
+        } else p.startsWith(y) && (o.push({ type: 6, index: r }), i.removeAttribute(p));
         if (vt.test(i.tagName)) {
-          const h = i.textContent.split(y), g = h.length - 1;
+          const p = i.textContent.split(y), g = p.length - 1;
           if (g > 0) {
             i.textContent = L ? L.emptyScript : "";
-            for (let m = 0; m < g; m++) i.append(h[m], R()), w.nextNode(), o.push({ type: 2, index: ++r });
-            i.append(h[g], R());
+            for (let m = 0; m < g; m++) i.append(p[m], R()), w.nextNode(), o.push({ type: 2, index: ++r });
+            i.append(p[g], R());
           }
         }
       } else if (i.nodeType === 8) if (i.data === yt) o.push({ type: 2, index: r });
       else {
-        let h = -1;
-        for (; (h = i.data.indexOf(y, h + 1)) !== -1; ) o.push({ type: 7, index: r }), h += y.length - 1;
+        let p = -1;
+        for (; (p = i.data.indexOf(y, p + 1)) !== -1; ) o.push({ type: 7, index: r }), p += y.length - 1;
       }
       r++;
     }
@@ -364,7 +364,7 @@ class Rt {
     for (; o !== void 0; ) {
       if (a === o.index) {
         let u;
-        o.type === 2 ? u = new G(r, r.nextSibling, this, t) : o.type === 1 ? u = new o.ctor(r, o.name, o.strings, this, t) : o.type === 6 && (u = new zt(r, this, t)), this._$AV.push(u), o = s[++c];
+        o.type === 2 ? u = new z(r, r.nextSibling, this, t) : o.type === 1 ? u = new o.ctor(r, o.name, o.strings, this, t) : o.type === 6 && (u = new Gt(r, this, t)), this._$AV.push(u), o = s[++c];
       }
       a !== (o == null ? void 0 : o.index) && (r = w.nextNode(), a++);
     }
@@ -375,7 +375,7 @@ class Rt {
     for (const s of this._$AV) s !== void 0 && (s.strings !== void 0 ? (s._$AI(t, s, e), e += s.strings.length - 2) : s._$AI(t[e])), e++;
   }
 }
-class G {
+class z {
   get _$AU() {
     var t;
     return ((t = this._$AM) == null ? void 0 : t._$AU) ?? this._$Cv;
@@ -423,7 +423,7 @@ class G {
     Z(this._$AH) || (this._$AH = [], this._$AR());
     const e = this._$AH;
     let s, i = 0;
-    for (const r of t) i === e.length ? e.push(s = new G(this.O(R()), this.O(R()), this, this.options)) : s = e[i], s._$AI(r), i++;
+    for (const r of t) i === e.length ? e.push(s = new z(this.O(R()), this.O(R()), this, this.options)) : s = e[i], s._$AI(r), i++;
     i < e.length && (this._$AR(s && s._$AB.nextSibling, i), e.length = i);
   }
   _$AR(t = this._$AA.nextSibling, e) {
@@ -479,7 +479,7 @@ class Nt extends B {
     this.element.toggleAttribute(this.name, !!t && t !== d);
   }
 }
-class Gt extends B {
+class zt extends B {
   constructor(t, e, s, i, r) {
     super(t, e, s, i, r), this.type = 5;
   }
@@ -493,7 +493,7 @@ class Gt extends B {
     typeof this._$AH == "function" ? this._$AH.call(((e = this.options) == null ? void 0 : e.host) ?? this.element, t) : this._$AH.handleEvent(t);
   }
 }
-class zt {
+class Gt {
   constructor(t, e, s) {
     this.element = t, this.type = 6, this._$AN = void 0, this._$AM = e, this.options = s;
   }
@@ -505,13 +505,13 @@ class zt {
   }
 }
 const Q = T.litHtmlPolyfillSupport;
-Q == null || Q(N, G), (T.litHtmlVersions ?? (T.litHtmlVersions = [])).push("3.3.2");
+Q == null || Q(N, z), (T.litHtmlVersions ?? (T.litHtmlVersions = [])).push("3.3.2");
 const jt = (n, t, e) => {
   const s = (e == null ? void 0 : e.renderBefore) ?? t;
   let i = s._$litPart$;
   if (i === void 0) {
     const r = (e == null ? void 0 : e.renderBefore) ?? null;
-    s._$litPart$ = i = new G(t.insertBefore(R(), r), r, void 0, e ?? {});
+    s._$litPart$ = i = new z(t.insertBefore(R(), r), r, void 0, e ?? {});
   }
   return i._$AI(n), i;
 };
@@ -546,8 +546,8 @@ class S extends E {
     return I;
   }
 }
-var pt;
-S._$litElement$ = !0, S.finalized = !0, (pt = k.litElementHydrateSupport) == null || pt.call(k, { LitElement: S });
+var ht;
+S._$litElement$ = !0, S.finalized = !0, (ht = k.litElementHydrateSupport) == null || ht.call(k, { LitElement: S });
 const D = k.litElementPolyfillSupport;
 D == null || D({ LitElement: S });
 (k.litElementVersions ?? (k.litElementVersions = [])).push("4.2.2");
@@ -564,7 +564,7 @@ const b = {
   show_queue_hint: !0,
   background: "#101722",
   accent_color: "#39d98a"
-}, Ot = 524288, j = "gamma-sonos-player:last-player", ht = "gamma-sonos-player:playback-memory";
+}, Ot = 524288, j = "gamma-sonos-player:last-player", pt = "gamma-sonos-player:playback-memory";
 function $(n, t) {
   if (typeof n == "number" && Number.isFinite(n))
     return n;
@@ -634,6 +634,7 @@ const X = class X extends S {
           0 0 54px color-mix(in srgb, var(--gamma-sonos-accent) 9%, transparent);
         box-sizing: border-box;
         color: var(--primary-text-color, #f4f7fb);
+        container-type: inline-size;
         display: grid;
         gap: clamp(8px, 1.8vw, 12px);
         min-height: var(--gamma-sonos-height);
@@ -823,8 +824,10 @@ const X = class X extends S {
 
       .topbar {
         align-items: start;
+        display: grid;
         gap: 10px;
-        justify-content: space-between;
+        grid-template-columns: minmax(0, 1fr) auto;
+        justify-content: initial;
       }
 
       .title {
@@ -834,19 +837,22 @@ const X = class X extends S {
       }
 
       .name {
-        font-size: clamp(17px, 3.3vw, 24px);
+        font-size: 18px;
         font-weight: 750;
         line-height: 1.1;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: normal;
-        word-break: break-word;
+        white-space: nowrap;
+        word-break: normal;
       }
 
       .state {
         color: var(--secondary-text-color, #b7c0ce);
         font-size: 13px;
         line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .rooms,
@@ -945,9 +951,11 @@ const X = class X extends S {
         font: inherit;
         font-size: 12px;
         font-weight: 750;
-        max-width: 260px;
+        max-width: 150px;
         min-width: 0;
         outline: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .room.active,
@@ -1461,6 +1469,33 @@ const X = class X extends S {
         min-width: 0;
       }
 
+      @container (max-width: 340px) {
+        .topbar {
+          gap: 6px;
+        }
+
+        .name {
+          font-size: 16px;
+        }
+
+        .state {
+          font-size: 12px;
+        }
+
+        .top-controls {
+          gap: 6px;
+        }
+
+        .player-picker {
+          gap: 4px;
+          padding: 4px 6px;
+        }
+
+        .player-picker select {
+          max-width: 88px;
+        }
+      }
+
       .next-up {
         align-self: end;
         color: var(--primary-text-color, #f4f7fb);
@@ -1647,7 +1682,7 @@ const X = class X extends S {
   }
   readPlaybackMemory() {
     try {
-      const t = JSON.parse(window.localStorage.getItem(ht) || "{}");
+      const t = JSON.parse(window.localStorage.getItem(pt) || "{}");
       return typeof t == "object" && t ? t : {};
     } catch {
       return {};
@@ -1655,7 +1690,7 @@ const X = class X extends S {
   }
   writePlaybackMemory(t) {
     try {
-      window.localStorage.setItem(ht, JSON.stringify(t));
+      window.localStorage.setItem(pt, JSON.stringify(t));
     } catch {
     }
   }
@@ -1667,7 +1702,10 @@ const X = class X extends S {
     );
     if (!t || !e && !i)
       return;
-    const r = {
+    const r = this.playbackMemory[t.entity_id];
+    if (r && r.title === e && r.artist === s && r.artwork === i && r.state === t.state)
+      return;
+    const a = {
       ...this.playbackMemory,
       [t.entity_id]: {
         title: e,
@@ -1677,7 +1715,7 @@ const X = class X extends S {
         updatedAt: Date.now()
       }
     };
-    this.playbackMemory = r, this.writePlaybackMemory(r);
+    this.playbackMemory = a, this.writePlaybackMemory(a);
   }
   get groupMembers() {
     var e;
@@ -1819,14 +1857,14 @@ const X = class X extends S {
       entity_id: i
     });
     r && typeof r.then == "function" && r.catch(() => {
-      const o = e, u = String((o == null ? void 0 : o.attributes.media_content_id) ?? ""), p = String((o == null ? void 0 : o.attributes.media_content_type) ?? "music");
+      const o = e, u = String((o == null ? void 0 : o.attributes.media_content_id) ?? ""), h = String((o == null ? void 0 : o.attributes.media_content_type) ?? "music");
       if (!u) {
         this.playbackError = "That queue is not available anymore. Pick a song from search to start this room.";
         return;
       }
       this.service("music_assistant", "play_media", {
         media_id: u,
-        media_type: p,
+        media_type: h,
         enqueue: "play"
       }, {
         entity_id: i
@@ -2075,11 +2113,11 @@ const X = class X extends S {
       enqueue: r
     };
     r === "play" && o === "track" && (u.radio_mode = !0);
-    const p = this.service("music_assistant", "play_media", u, {
+    const h = this.service("music_assistant", "play_media", u, {
       entity_id: c
     });
-    if (p && typeof p.then == "function") {
-      p.catch((h) => {
+    if (h && typeof h.then == "function") {
+      h.catch((p) => {
         if (r === "next") {
           const g = this.service("music_assistant", "play_media", {
             media_id: s,
@@ -2092,7 +2130,7 @@ const X = class X extends S {
             this.playbackError = m instanceof Error ? m.message : "Music Assistant queue add failed.";
           }) : void 0;
         }
-        this.playbackError = h instanceof Error ? h.message : "Music Assistant playback failed.";
+        this.playbackError = p instanceof Error ? p.message : "Music Assistant playback failed.";
       }).finally(() => {
         this.playbackPending = !1, (r === "next" || this.activeTab === "queue") && this.refreshQueue();
       });
