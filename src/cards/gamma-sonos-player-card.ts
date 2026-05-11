@@ -3159,6 +3159,8 @@ export class GammaSonosPlayerCard extends LitElement {
     const moveTargetCount = this.selectedGroupIds.filter(
       (id) => id !== this.playbackEntityId,
     ).length;
+    const groupMemberCount = this.groupMembers.length;
+    const hasActiveGroup = groupMemberCount > 1;
 
     return html`
       <section class="grouping">
@@ -3193,12 +3195,12 @@ export class GammaSonosPlayerCard extends LitElement {
           <button
             class="group-chip action continue"
             ?disabled=${this.groupPending || moveTargetCount !== 1}
-            title="Move the current music to the selected speaker"
+            title="Transfer the current queue to one selected speaker"
             @click=${this.continueInSelectedRoom}
           >
             <span class="group-check">▶</span>
-            <span class="group-name">Move Music</span>
-            <span class="group-status">${moveTargetCount === 1 ? 'To selected speaker' : 'Select one speaker'}</span>
+            <span class="group-name">Transfer Playback</span>
+            <span class="group-status">${moveTargetCount === 1 ? 'Move current queue' : 'Select 1 room'}</span>
           </button>
           <button
             class="group-chip action group"
@@ -3207,30 +3209,30 @@ export class GammaSonosPlayerCard extends LitElement {
             @click=${this.groupSelected}
           >
             <span class="group-check">+</span>
-            <span class="group-name">Add Selected</span>
+            <span class="group-name">Group Selected</span>
             <span class="group-status">
-              ${activeCanGroup ? `${pendingCount} selected` : 'Cannot group this speaker'}
+              ${activeCanGroup ? `${pendingCount} room${pendingCount === 1 ? '' : 's'}` : 'Cannot group this speaker'}
             </span>
           </button>
           <button
             class="group-chip action ungroup"
-            ?disabled=${this.groupPending}
-            title="Remove this speaker from its group"
+            ?disabled=${this.groupPending || !hasActiveGroup}
+            title="Make this room leave the current speaker group"
             @click=${this.ungroupActive}
           >
             <span class="group-check">×</span>
-            <span class="group-name">Remove Room</span>
-            <span class="group-status">This speaker</span>
+            <span class="group-name">Leave Group</span>
+            <span class="group-status">${hasActiveGroup ? 'This room only' : 'No group active'}</span>
           </button>
           <button
             class="group-chip action clear"
-            ?disabled=${this.groupPending}
-            title="Clear the whole group"
+            ?disabled=${this.groupPending || !hasActiveGroup}
+            title="Ungroup every room in the current speaker group"
             @click=${this.ungroupAll}
           >
             <span class="group-check">×</span>
-            <span class="group-name">Clear Group</span>
-            <span class="group-status">All speakers</span>
+            <span class="group-name">Ungroup All</span>
+            <span class="group-status">${hasActiveGroup ? `${groupMemberCount} rooms` : 'No group active'}</span>
           </button>
         </div>
       </section>
