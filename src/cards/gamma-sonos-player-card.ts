@@ -323,7 +323,7 @@ export class GammaSonosPlayerCard extends LitElement {
         color: var(--primary-text-color, #f4f7fb);
         container-type: inline-size;
         display: grid;
-        gap: clamp(8px, 1.8vw, 12px);
+        gap: clamp(7px, 1.5vw, 10px);
         min-height: var(--gamma-sonos-height);
         overflow: hidden;
         padding: clamp(12px, 2.6vw, 16px);
@@ -540,7 +540,7 @@ export class GammaSonosPlayerCard extends LitElement {
       .topbar {
         align-items: start;
         display: grid;
-        gap: 10px;
+        gap: 8px 12px;
         grid-template-columns: minmax(0, 1fr) auto;
         justify-content: initial;
       }
@@ -548,6 +548,13 @@ export class GammaSonosPlayerCard extends LitElement {
       .title {
         display: grid;
         gap: 2px;
+        min-width: 0;
+      }
+
+      .state-line {
+        align-items: center;
+        display: flex;
+        gap: 8px;
         min-width: 0;
       }
 
@@ -584,7 +591,7 @@ export class GammaSonosPlayerCard extends LitElement {
         border: 0;
         border-radius: 0;
         display: grid;
-        gap: 6px;
+        gap: 4px;
         grid-template-columns: 1fr;
         padding: 0;
       }
@@ -628,7 +635,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .now-label {
         color: var(--secondary-text-color, #b7c0ce);
-        font-size: 12px;
+        font-size: 10px;
         font-weight: 650;
         letter-spacing: 0;
         margin-bottom: -2px;
@@ -640,10 +647,10 @@ export class GammaSonosPlayerCard extends LitElement {
         border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent);
         border-radius: 999px;
         color: var(--primary-text-color, #f4f7fb);
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 750;
-        min-height: 26px;
-        padding: 0 9px;
+        min-height: 22px;
+        padding: 0 8px;
       }
 
       .player-picker {
@@ -1201,7 +1208,7 @@ export class GammaSonosPlayerCard extends LitElement {
       .top-controls {
         align-items: end;
         display: grid;
-        gap: 8px;
+        gap: 4px;
         justify-items: end;
         min-width: 0;
       }
@@ -1234,25 +1241,30 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .next-up {
-        align-self: end;
         color: var(--primary-text-color, #f4f7fb);
-        display: block;
+        display: inline-flex;
+        flex: 1;
         font-size: 12px;
         font-weight: 720;
+        gap: 5px;
         line-height: 1.2;
-        max-width: min(310px, 48vw);
         min-width: 0;
         overflow: hidden;
-        text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      .next-up span {
+      .next-up .next-title {
+        color: var(--primary-text-color, #f4f7fb);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .next-up .next-label {
         color: var(--secondary-text-color, #b7c0ce);
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.05em;
-        margin-right: 5px;
         text-transform: uppercase;
       }
 
@@ -2939,23 +2951,18 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private renderRooms(): TemplateResult | typeof nothing {
-    const players = this.allPlayers;
     const nowPlaying = this.currentlyPlayingPlayers;
 
-    if (players.length < 2) {
+    if (nowPlaying.length < 2) {
       return nothing;
     }
 
-    const visiblePlayers = nowPlaying.length > 0
-      ? nowPlaying
-      : [this.activePlayer].filter((player): player is HassEntity => Boolean(player));
-
     return html`
       <div class="rooms">
-        <span class="now-label">${nowPlaying.length > 0 ? 'Playing in' : 'Selected room'}</span>
+        <span class="now-label">Playing in</span>
         <div class="now-row">
           <div class="now-speakers">
-            ${visiblePlayers.map(
+            ${nowPlaying.map(
               (player) => html`
                 <span class="now-chip">
                   ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
@@ -3005,19 +3012,25 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private renderTopControls(): TemplateResult {
-    const nextItem = this.queueItems[0];
-
     return html`
       <div class="top-controls">
         ${this.allPlayers.length > 1 ? this.renderPlayerPicker(this.allPlayers) : nothing}
-        ${nextItem
-          ? html`
-              <div class="next-up">
-                <span>Next</span>${nextItem.name ?? nextItem.uri ?? 'Queue item'}
-              </div>
-            `
-          : nothing}
       </div>
+    `;
+  }
+
+  private renderNextUp(): TemplateResult | typeof nothing {
+    const nextItem = this.queueItems[0];
+
+    if (!nextItem) {
+      return nothing;
+    }
+
+    return html`
+      <span class="next-up">
+        <span class="next-label">Next</span>
+        <span class="next-title">${nextItem.name ?? nextItem.uri ?? 'Queue item'}</span>
+      </span>
     `;
   }
 
@@ -3763,7 +3776,10 @@ export class GammaSonosPlayerCard extends LitElement {
           <div class="topbar">
             <div class="title">
               <span class="name">${this.config.name || this.activeName || 'Sonos'}</span>
-              <span class="state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
+              <span class="state-line">
+                <span class="state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
+                ${this.renderNextUp()}
+              </span>
             </div>
             ${this.renderTopControls()}
           </div>
