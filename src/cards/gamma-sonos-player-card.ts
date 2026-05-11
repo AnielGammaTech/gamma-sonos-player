@@ -282,6 +282,8 @@ export class GammaSonosPlayerCard extends LitElement {
   private playlistRequestId = 0;
   private queueRefreshTimer?: number;
   private queueRefreshRetryTimer?: number;
+  private initialQueueRefreshTimer?: number;
+  private lastInitialQueueEntityId = '';
   private lastQueueSignature = '';
 
   static get styles(): CSSResultGroup {
@@ -1221,10 +1223,22 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .top-controls {
         align-items: start;
-        display: flex;
+        display: grid;
         gap: 4px;
-        justify-content: flex-end;
+        justify-items: end;
         min-width: 0;
+      }
+
+      .header-state {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 12px;
+        font-weight: 650;
+        line-height: 1.1;
+        max-width: 100%;
+        overflow: hidden;
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       @container (max-width: 340px) {
@@ -1352,6 +1366,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
   protected updated(): void {
     this.rememberPlaybackState();
+    this.scheduleInitialQueueRefresh();
     this.scheduleQueueRefreshForPlayback();
   }
 
@@ -1360,6 +1375,7 @@ export class GammaSonosPlayerCard extends LitElement {
     window.clearTimeout(this.searchTimer);
     window.clearTimeout(this.queueRefreshTimer);
     window.clearTimeout(this.queueRefreshRetryTimer);
+    window.clearTimeout(this.initialQueueRefreshTimer);
   }
 
   public getCardSize(): number {
@@ -1704,6 +1720,24 @@ export class GammaSonosPlayerCard extends LitElement {
     this.queueRefreshTimer = window.setTimeout(() => {
       void this.refreshQueue({ silent: true });
     }, 700);
+  }
+
+  private scheduleInitialQueueRefresh(): void {
+    const queueEntityId = this.queueTargetEntityId();
+
+    if (!queueEntityId || !this.hass?.callWS || this.queueLoading) {
+      return;
+    }
+
+    if (this.lastInitialQueueEntityId === queueEntityId) {
+      return;
+    }
+
+    this.lastInitialQueueEntityId = queueEntityId;
+    window.clearTimeout(this.initialQueueRefreshTimer);
+    this.initialQueueRefreshTimer = window.setTimeout(() => {
+      void this.refreshQueue({ silent: true });
+    }, 500);
   }
 
   private get groupMembers(): string[] {
@@ -3009,6 +3043,7 @@ export class GammaSonosPlayerCard extends LitElement {
             this.pendingGroupIds = [];
             this.queueItems = [];
             this.queueError = '';
+            this.lastInitialQueueEntityId = '';
             if (this.activeTab === 'queue') {
               void this.refreshQueue();
             }
@@ -3029,7 +3064,7 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
-  private renderHeaderIdentity(unavailable: boolean, player?: HassEntity): TemplateResult {
+  private renderHeaderIdentity(): TemplateResult {
     const players = this.allPlayers;
 
     return html`
@@ -3037,14 +3072,14 @@ export class GammaSonosPlayerCard extends LitElement {
         ${players.length > 1
           ? this.renderPlayerPicker(players, true)
           : html`<span class="name">${this.activeName || 'Sonos'}</span>`}
-        <span class="state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
       </div>
     `;
   }
 
-  private renderTopControls(): TemplateResult {
+  private renderTopControls(unavailable: boolean, player?: HassEntity): TemplateResult {
     return html`
       <div class="top-controls">
+        <span class="header-state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
         ${this.renderNextUp()}
       </div>
     `;
@@ -3805,8 +3840,8 @@ export class GammaSonosPlayerCard extends LitElement {
           "
         >
           <div class="topbar">
-            ${this.renderHeaderIdentity(unavailable, player)}
-            ${this.renderTopControls()}
+            ${this.renderHeaderIdentity()}
+            ${this.renderTopControls(unavailable, player)}
           </div>
           ${this.renderRooms()}
           ${this.renderMiniPlayer(title, artist, unavailable)}
