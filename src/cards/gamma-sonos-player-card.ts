@@ -84,6 +84,19 @@ type SearchItem = {
   queue_item_id?: string;
 };
 
+type BrowseMediaNode = {
+  title?: string;
+  name?: string;
+  media_class?: string;
+  media_content_id?: string;
+  media_content_type?: string;
+  thumbnail?: string;
+  image?: string;
+  can_play?: boolean;
+  can_expand?: boolean;
+  children?: BrowseMediaNode[];
+};
+
 type QueueServiceAttempt = {
   domain: string;
   service: string;
@@ -119,7 +132,7 @@ const DEFAULT_CONFIG: Required<
   height: 'auto',
   fill_container: true,
   compact: false,
-  enqueue_mode: 'next',
+  enqueue_mode: 'play',
   search_limit: 5,
   library_only: false,
   show_grouping: true,
@@ -210,6 +223,9 @@ export class GammaSonosPlayerCard extends LitElement {
     browserView: { state: true },
     selectedArtist: { state: true },
     selectedAlbum: { state: true },
+    albumTracks: { state: true },
+    albumLoading: { state: true },
+    albumError: { state: true },
     showVolumeMixer: { state: true },
     showCurrentGroup: { state: true },
     groupError: { state: true },
@@ -236,6 +252,9 @@ export class GammaSonosPlayerCard extends LitElement {
   private browserView: BrowserView = 'results';
   private selectedArtist?: SearchItem;
   private selectedAlbum?: SearchItem;
+  private albumTracks: SearchItem[] = [];
+  private albumLoading = false;
+  private albumError = '';
   private showVolumeMixer = false;
   private showCurrentGroup = false;
   private groupError = '';
@@ -243,6 +262,10 @@ export class GammaSonosPlayerCard extends LitElement {
   private queueLoading = false;
   private queueError = '';
   private playbackMemory: Record<string, PlaybackMemory> = {};
+  private searchRequestId = 0;
+  private albumRequestId = 0;
+  private queueRefreshTimer?: number;
+  private lastQueueSignature = '';
 
   static get styles(): CSSResultGroup {
     return css`
@@ -438,13 +461,12 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .player::before {
-        background-image: var(--gamma-sonos-artwork);
-        background-position: center;
-        background-size: cover;
+        background:
+          radial-gradient(circle at 22% 0%, color-mix(in srgb, var(--gamma-sonos-accent) 18%, transparent), transparent 38%),
+          linear-gradient(180deg, rgb(255 255 255 / 4%), transparent 42%);
         content: '';
-        filter: blur(28px) saturate(1.2);
-        inset: -34px;
-        opacity: 0.18;
+        inset: 0;
+        opacity: 0.42;
         position: absolute;
       }
 
@@ -1231,6 +1253,13 @@ export class GammaSonosPlayerCard extends LitElement {
 
   protected updated(): void {
     this.rememberPlaybackState();
+    this.scheduleQueueRefreshForPlayback();
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.clearTimeout(this.searchTimer);
+    window.clearTimeout(this.queueRefreshTimer);
   }
 
   public getCardSize(): number {
@@ -1297,7 +1326,8 @@ export class GammaSonosPlayerCard extends LitElement {
       .replace(/_/g, ' ')
       .replace(/\b(ma|mass)\b/g, '')
       .replace(/\b(sonos|music assistant|speaker|player)\b/g, '')
-      .replace(/\s+/g, ' ');
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private preferredRoomPlayer(current: HassEntity, candidate: HassEntity): HassEntity {
@@ -1485,6 +1515,31 @@ export class GammaSonosPlayerCard extends LitElement {
 
     this.playbackMemory = nextMemory;
     this.writePlaybackMemory(nextMemory);
+  }
+
+  private scheduleQueueRefreshForPlayback(): void {
+    const player = this.playbackPlayer;
+    const queueEntityId = this.queueTargetEntityId();
+
+    if (!player || player.state !== 'playing' || !queueEntityId || !this.hass?.callWS) {
+      return;
+    }
+
+    const signature = [
+      queueEntityId,
+      player.attributes.media_content_id,
+      player.attributes.media_title,
+    ].join(':');
+
+    if (signature === this.lastQueueSignature) {
+      return;
+    }
+
+    this.lastQueueSignature = signature;
+    window.clearTimeout(this.queueRefreshTimer);
+    this.queueRefreshTimer = window.setTimeout(() => {
+      void this.refreshQueue({ silent: true });
+    }, 700);
   }
 
   private get groupMembers(): string[] {
@@ -1857,6 +1912,44 @@ export class GammaSonosPlayerCard extends LitElement {
     window.setTimeout(finish, 700);
   }
 
+  private musicAssistantSearchData(
+    name: string,
+    patch: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    const serviceData: Record<string, unknown> = {
+      name,
+      limit: toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit),
+      library_only: Boolean(this.config.library_only ?? DEFAULT_CONFIG.library_only),
+      ...patch,
+    };
+
+    if (this.config.music_assistant_config_entry_id) {
+      serviceData.config_entry_id = this.config.music_assistant_config_entry_id;
+    }
+
+    if (!serviceData.media_type && this.config.search_media_types?.length) {
+      serviceData.media_type = this.config.search_media_types;
+    }
+
+    return serviceData;
+  }
+
+  private async fetchMusicAssistantSearch(serviceData: Record<string, unknown>): Promise<SearchItem[]> {
+    if (!this.hass?.callWS) {
+      throw new Error('This Home Assistant frontend does not expose service responses here.');
+    }
+
+    const response = await this.hass.callWS<Record<string, unknown>>({
+      type: 'call_service',
+      domain: 'music_assistant',
+      service: 'search',
+      service_data: serviceData,
+      return_response: true,
+    });
+
+    return this.extractSearchResults(response);
+  }
+
   private async searchMusicAssistant(preserveArtist = false): Promise<void> {
     const name = this.query.trim();
 
@@ -1867,41 +1960,32 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
+    const requestId = ++this.searchRequestId;
     this.searching = true;
     this.searchError = '';
 
     try {
-      const serviceData: Record<string, unknown> = {
-        name,
-        limit: toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit),
-        library_only: Boolean(this.config.library_only ?? DEFAULT_CONFIG.library_only),
-      };
-
-      if (this.config.music_assistant_config_entry_id) {
-        serviceData.config_entry_id = this.config.music_assistant_config_entry_id;
+      const results = await this.fetchMusicAssistantSearch(this.musicAssistantSearchData(name));
+      if (requestId !== this.searchRequestId) {
+        return;
       }
 
-      if (this.config.search_media_types?.length) {
-        serviceData.media_type = this.config.search_media_types;
-      }
-
-      const response = await this.hass.callWS<Record<string, unknown>>({
-        type: 'call_service',
-        domain: 'music_assistant',
-        service: 'search',
-        service_data: serviceData,
-        return_response: true,
-      });
-      this.searchResults = this.extractSearchResults(response);
+      this.searchResults = results;
       if (!preserveArtist) {
         this.browserView = 'results';
         this.selectedArtist = undefined;
         this.selectedAlbum = undefined;
+        this.albumTracks = [];
+        this.albumError = '';
       }
     } catch (error) {
-      this.searchError = error instanceof Error ? error.message : 'Search failed';
+      if (requestId === this.searchRequestId) {
+        this.searchError = error instanceof Error ? error.message : 'Search failed';
+      }
     } finally {
-      this.searching = false;
+      if (requestId === this.searchRequestId) {
+        this.searching = false;
+      }
     }
   }
 
@@ -1909,6 +1993,7 @@ export class GammaSonosPlayerCard extends LitElement {
     window.clearTimeout(this.searchTimer);
 
     if (this.query.trim().length < 2) {
+      this.searching = false;
       return;
     }
 
@@ -1920,6 +2005,8 @@ export class GammaSonosPlayerCard extends LitElement {
   private openArtist(item: SearchItem): void {
     this.selectedArtist = item;
     this.selectedAlbum = undefined;
+    this.albumTracks = [];
+    this.albumError = '';
     this.browserView = 'artist';
     this.query = item.name ?? this.query;
     void this.searchMusicAssistant(true);
@@ -1930,7 +2017,133 @@ export class GammaSonosPlayerCard extends LitElement {
     this.selectedArtist = undefined;
     this.browserView = 'album';
     this.query = item.name ?? this.query;
-    void this.searchMusicAssistant(true);
+    void this.loadAlbumTracks(item);
+  }
+
+  private async loadAlbumTracks(album: SearchItem): Promise<void> {
+    const requestId = ++this.albumRequestId;
+    this.albumTracks = [];
+    this.albumError = '';
+    this.albumLoading = true;
+
+    try {
+      let tracks: SearchItem[] = [];
+
+      try {
+        tracks = await this.browseAlbumTracks(album);
+      } catch {
+        tracks = [];
+      }
+
+      if (tracks.length === 0) {
+        tracks = await this.searchAlbumTracks(album);
+      }
+
+      if (requestId !== this.albumRequestId) {
+        return;
+      }
+
+      this.albumTracks = this.dedupeQueueItems(tracks);
+      if (this.albumTracks.length === 0) {
+        this.albumError = 'No tracks found for this album.';
+      }
+    } catch (error) {
+      if (requestId === this.albumRequestId) {
+        this.albumError = error instanceof Error ? error.message : 'Album tracks are unavailable.';
+      }
+    } finally {
+      if (requestId === this.albumRequestId) {
+        this.albumLoading = false;
+      }
+    }
+  }
+
+  private async browseAlbumTracks(album: SearchItem): Promise<SearchItem[]> {
+    if (!this.hass?.callWS || !album.uri) {
+      return [];
+    }
+
+    const entityId = this.queueTargetEntityId() || this.activeEntityId;
+    if (!entityId) {
+      return [];
+    }
+
+    const response = await this.hass.callWS<BrowseMediaNode>({
+      type: 'media_player/browse_media',
+      entity_id: entityId,
+      media_content_id: album.uri,
+      media_content_type: 'album',
+    });
+
+    return this.extractBrowseTracks(response, album);
+  }
+
+  private async searchAlbumTracks(album: SearchItem): Promise<SearchItem[]> {
+    const albumName = album.name ?? '';
+    const artist = this.itemArtist(album);
+    const name = artist || albumName;
+
+    if (!name) {
+      return [];
+    }
+
+    const serviceData = this.musicAssistantSearchData(name, {
+      album: albumName,
+      limit: Math.max(40, toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit)),
+      media_type: ['track'],
+    });
+
+    if (artist) {
+      serviceData.artist = artist;
+    }
+
+    return this.fetchMusicAssistantSearch(serviceData)
+      .then((items) => items.filter((item) => (item.media_type || item.type) === 'track'));
+  }
+
+  private extractBrowseTracks(response: unknown, album: SearchItem): SearchItem[] {
+    const tracks: SearchItem[] = [];
+    const albumName = album.name ?? '';
+    const albumArtist = this.itemArtist(album);
+    const albumImage = album.image || album.thumb || album.album?.image || '';
+    const visit = (node: unknown, depth = 0) => {
+      if (typeof node !== 'object' || !node) {
+        return;
+      }
+
+      const browseNode = node as BrowseMediaNode;
+      const mediaType = this.normalizedMediaType(
+        browseNode.media_content_type || browseNode.media_class,
+        'track',
+      );
+      const mediaId = String(browseNode.media_content_id ?? '');
+      const title = String(browseNode.title ?? browseNode.name ?? '');
+      const children = Array.isArray(browseNode.children) ? browseNode.children : [];
+      const playableTrack =
+        depth > 0 &&
+        Boolean(mediaId) &&
+        Boolean(title) &&
+        (mediaType === 'track' ||
+          String(browseNode.media_class ?? '').toLowerCase().includes('track') ||
+          (browseNode.can_play && !browseNode.can_expand && mediaType !== 'album'));
+
+      if (playableTrack) {
+        tracks.push({
+          name: title,
+          uri: mediaId,
+          media_type: 'track',
+          type: 'track',
+          artist: albumArtist,
+          album: albumName ? { name: albumName, image: albumImage } : album.album,
+          image: String(browseNode.thumbnail ?? browseNode.image ?? albumImage) || undefined,
+        });
+      }
+
+      children.forEach((child) => visit(child, depth + 1));
+    };
+
+    visit(response);
+    return tracks;
   }
 
   private extractSearchResults(response: Record<string, unknown>): SearchItem[] {
@@ -1953,6 +2166,36 @@ export class GammaSonosPlayerCard extends LitElement {
     return items;
   }
 
+  private normalizedMediaType(value: unknown, fallback: MediaType): MediaType {
+    const normalized = String(value ?? '').toLowerCase();
+
+    if (normalized.includes('album')) {
+      return 'album';
+    }
+
+    if (normalized.includes('artist')) {
+      return 'artist';
+    }
+
+    if (normalized.includes('playlist')) {
+      return 'playlist';
+    }
+
+    if (normalized.includes('radio')) {
+      return 'radio';
+    }
+
+    if (normalized.includes('podcast')) {
+      return 'podcast';
+    }
+
+    if (normalized.includes('track') || normalized.includes('song')) {
+      return 'track';
+    }
+
+    return fallback;
+  }
+
   private normalizeSearchItem(item: Record<string, unknown>, fallbackType: MediaType): SearchItem {
     const album = typeof item.album === 'object' && item.album
       ? item.album as { name?: string; image?: string }
@@ -1960,7 +2203,7 @@ export class GammaSonosPlayerCard extends LitElement {
     const artists = Array.isArray(item.artists)
       ? item.artists as Array<{ name?: string }>
       : undefined;
-    const mediaType = String(item.media_type ?? item.type ?? fallbackType) as MediaType;
+    const mediaType = this.normalizedMediaType(item.media_type ?? item.type, fallbackType);
     const image = String(
       item.image ??
         item.thumb ??
@@ -2020,7 +2263,7 @@ export class GammaSonosPlayerCard extends LitElement {
     ];
   }
 
-  private async refreshQueue(): Promise<void> {
+  private async refreshQueue(options: { silent?: boolean } = {}): Promise<void> {
     const entityId = this.queueTargetEntityId();
 
     if (!entityId || !this.hass?.callWS) {
@@ -2031,7 +2274,9 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
-    this.queueLoading = true;
+    if (!options.silent) {
+      this.queueLoading = true;
+    }
     this.queueError = '';
 
     try {
@@ -2046,7 +2291,7 @@ export class GammaSonosPlayerCard extends LitElement {
             service_data: attempt.data,
             return_response: true,
           });
-          const items = this.extractQueueItems(response);
+          const items = this.extractQueueItems(response, entityId);
 
           if (attempt.domain === 'mass_queue') {
             errors.length = 0;
@@ -2066,38 +2311,66 @@ export class GammaSonosPlayerCard extends LitElement {
         ? errors[errors.length - 1]
         : 'Queue is empty or unavailable for this Music Assistant player.';
     } finally {
-      this.queueLoading = false;
+      if (!options.silent) {
+        this.queueLoading = false;
+      }
     }
   }
 
-  private extractQueueItems(response: unknown): SearchItem[] {
+  private extractQueueItems(response: unknown, entityId = ''): SearchItem[] {
     const root = this.responsePayload(response);
-    const candidates = [
-      this.valueAtPath(root, ['items']),
-      this.valueAtPath(root, ['queue']),
-      this.valueAtPath(root, ['queue_items']),
-      this.valueAtPath(root, ['next_items']),
-      this.valueAtPath(root, ['upcoming_items']),
-      this.valueAtPath(root, ['response', 'items']),
-      this.valueAtPath(root, ['response', 'queue']),
-      this.valueAtPath(root, ['response', 'queue_items']),
-      this.valueAtPath(root, ['response', 'next_items']),
-      this.valueAtPath(root, ['response', 'upcoming_items']),
-      this.valueAtPath(root, ['current_item']),
-      this.valueAtPath(root, ['next_item']),
-      this.valueAtPath(root, ['response', 'current_item']),
-      this.valueAtPath(root, ['response', 'next_item']),
-      root,
-    ];
+    const roots = this.queueResponseRoots(root, entityId);
 
-    for (const candidate of candidates) {
-      const items = this.queueItemsFromUnknown(candidate);
-      if (items.length > 0) {
-        return this.dedupeQueueItems(items);
+    for (const queueRoot of roots) {
+      const current = this.normalizeQueueItem(this.valueAtPath(queueRoot, ['current_item']));
+      const candidates = [
+        Array.isArray(queueRoot) ? queueRoot : undefined,
+        this.valueAtPath(queueRoot, ['next_items']),
+        this.valueAtPath(queueRoot, ['upcoming_items']),
+        this.valueAtPath(queueRoot, ['items']),
+        this.valueAtPath(queueRoot, ['queue_items']),
+        this.valueAtPath(queueRoot, ['queue']),
+        this.valueAtPath(queueRoot, ['next_item']),
+      ];
+
+      for (const candidate of candidates) {
+        const items = this.queueItemsFromUnknown(candidate)
+          .filter((item) => !current || !this.sameQueueItem(item, current));
+        if (items.length > 0) {
+          return this.dedupeQueueItems(items);
+        }
       }
     }
 
     return [];
+  }
+
+  private queueResponseRoots(root: unknown, entityId: string): unknown[] {
+    const roots: unknown[] = [root];
+
+    if (typeof root === 'object' && root) {
+      const objectRoot = root as Record<string, unknown>;
+
+      if (entityId && objectRoot[entityId]) {
+        roots.unshift(objectRoot[entityId]);
+      }
+
+      Object.entries(objectRoot).forEach(([key, value]) => {
+        if (
+          key.startsWith('media_player.') ||
+          (typeof value === 'object' && value && (
+            'current_item' in value ||
+            'next_item' in value ||
+            'queue_items' in value ||
+            'items' in value
+          ))
+        ) {
+          roots.push(value);
+        }
+      });
+    }
+
+    return roots.filter((value, index, values) => values.indexOf(value) === index);
   }
 
   private responsePayload(response: unknown): unknown {
@@ -2128,19 +2401,19 @@ export class GammaSonosPlayerCard extends LitElement {
 
     if (typeof value === 'object' && value) {
       const objectValue = value as Record<string, unknown>;
-      const directItem = this.normalizeQueueItem(objectValue);
-
-      if (directItem) {
-        return [directItem];
-      }
-
-      const nestedKeys = ['items', 'queue', 'queue_items', 'next_items', 'upcoming_items'];
+      const nestedKeys = ['next_items', 'upcoming_items', 'items', 'queue_items', 'queue', 'next_item'];
 
       for (const key of nestedKeys) {
         const nestedItems = this.queueItemsFromUnknown(objectValue[key]);
         if (nestedItems.length > 0) {
           return nestedItems;
         }
+      }
+
+      const directItem = this.normalizeQueueItem(objectValue);
+
+      if (directItem) {
+        return [directItem];
       }
 
       for (const nestedValue of Object.values(objectValue)) {
@@ -2154,12 +2427,29 @@ export class GammaSonosPlayerCard extends LitElement {
     return [];
   }
 
+  private isQueueContainer(value: Record<string, unknown>): boolean {
+    return Boolean(
+      value.current_item ||
+        value.next_item ||
+        value.next_items ||
+        value.upcoming_items ||
+        value.queue_items ||
+        value.items ||
+        value.active_queue ||
+        (value.entity_id && value.attributes),
+    );
+  }
+
   private normalizeQueueItem(value: unknown): SearchItem | undefined {
     if (typeof value !== 'object' || !value) {
       return undefined;
     }
 
     const row = value as Record<string, unknown>;
+    if (this.isQueueContainer(row)) {
+      return undefined;
+    }
+
     const mediaItem =
       (typeof row.media_item === 'object' && row.media_item
         ? row.media_item as Record<string, unknown>
@@ -2180,7 +2470,7 @@ export class GammaSonosPlayerCard extends LitElement {
         '',
     );
     const uri = String(mediaItem.uri ?? row.uri ?? row.media_id ?? row.media_content_id ?? '');
-    const mediaType = String(mediaItem.media_type ?? row.media_type ?? row.type ?? 'track') as MediaType;
+    const mediaType = this.normalizedMediaType(mediaItem.media_type ?? row.media_type ?? row.type, 'track');
     const image = String(
       mediaItem.image ??
         row.image ??
@@ -2223,6 +2513,23 @@ export class GammaSonosPlayerCard extends LitElement {
     });
   }
 
+  private sameQueueItem(left: SearchItem, right: SearchItem): boolean {
+    if (left.queue_item_id && right.queue_item_id) {
+      return left.queue_item_id === right.queue_item_id;
+    }
+
+    if (left.uri && right.uri) {
+      return left.uri === right.uri;
+    }
+
+    return Boolean(
+      left.name &&
+        right.name &&
+        left.name === right.name &&
+        (left.artist ?? '') === (right.artist ?? ''),
+    );
+  }
+
   private itemArtist(item: SearchItem): string {
     return String(
       item.artist ||
@@ -2233,6 +2540,13 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private itemAlbum(item: SearchItem): string {
     return String(item.album?.name ?? '');
+  }
+
+  private refreshQueueAfterPlayback(): void {
+    window.clearTimeout(this.queueRefreshTimer);
+    this.queueRefreshTimer = window.setTimeout(() => {
+      void this.refreshQueue({ silent: this.activeTab !== 'queue' });
+    }, 900);
   }
 
   private playSearchResult(item: SearchItem, enqueueOverride?: EnqueueMode): void {
@@ -2255,7 +2569,7 @@ export class GammaSonosPlayerCard extends LitElement {
     this.playbackPending = true;
     window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, targetEntityId);
     this.selectedEntityId = targetEntityId;
-    const mediaType = item.media_type || item.type;
+    const mediaType = item.media_type || item.type || 'track';
     const serviceData: Record<string, unknown> = {
       media_id: mediaId,
       media_type: mediaType,
@@ -2272,13 +2586,39 @@ export class GammaSonosPlayerCard extends LitElement {
       serviceData.album = album;
     }
 
+    if (enqueue === 'play' && mediaType === 'track') {
+      serviceData.radio_mode = true;
+    }
+
     const result = this.service('music_assistant', 'play_media', serviceData, {
       entity_id: targetEntityId,
     });
 
     if (result && typeof result.then === 'function') {
       result
-        .catch((error: unknown) => {
+        .catch(async (error: unknown) => {
+          if (serviceData.radio_mode) {
+            const fallbackData = { ...serviceData };
+            delete fallbackData.radio_mode;
+
+            try {
+              const fallback = this.service('music_assistant', 'play_media', fallbackData, {
+                entity_id: targetEntityId,
+              });
+
+              if (fallback && typeof fallback.then === 'function') {
+                await fallback;
+              }
+
+              return;
+            } catch (fallbackError) {
+              this.playbackError = fallbackError instanceof Error
+                ? fallbackError.message
+                : 'Music Assistant playback failed.';
+              return;
+            }
+          }
+
           if (enqueue === 'next') {
             const fallback = this.service('music_assistant', 'play_media', {
               media_id: mediaId,
@@ -2304,18 +2644,14 @@ export class GammaSonosPlayerCard extends LitElement {
         })
         .finally(() => {
           this.playbackPending = false;
-          if (enqueue === 'next' || this.activeTab === 'queue') {
-            void this.refreshQueue();
-          }
+          this.refreshQueueAfterPlayback();
         });
       return;
     }
 
     window.setTimeout(() => {
       this.playbackPending = false;
-      if (enqueue === 'next' || this.activeTab === 'queue') {
-        void this.refreshQueue();
-      }
+      this.refreshQueueAfterPlayback();
     }, 900);
   }
 
@@ -2754,7 +3090,7 @@ export class GammaSonosPlayerCard extends LitElement {
             : this.renderResults()
           : nothing}
         ${this.config.show_queue_hint
-          ? html`<div class="hint">Tap a result to use your default queue mode, or use Now/Next for a specific action.</div>`
+          ? html`<div class="hint">Tap a result to start playback, or use Next to queue it after the current song.</div>`
           : nothing}
       </section>
     `;
@@ -2768,17 +3104,20 @@ export class GammaSonosPlayerCard extends LitElement {
     label: string,
     items: SearchItem[],
     action: 'artist' | 'album' | 'play' = 'play',
+    limitResults = true,
   ): TemplateResult | typeof nothing {
     if (items.length === 0) {
       return nothing;
     }
 
+    const visibleItems = limitResults
+      ? items.slice(0, toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit))
+      : items;
+
     return html`
       <section class="result-section">
         <span class="section-header">${label}</span>
-        ${items
-          .slice(0, toNumber(this.config.search_limit, DEFAULT_CONFIG.search_limit))
-          .map((item) => this.renderResultItem(item, action))}
+        ${visibleItems.map((item) => this.renderResultItem(item, action))}
       </section>
     `;
   }
@@ -2817,6 +3156,12 @@ export class GammaSonosPlayerCard extends LitElement {
     const album = this.selectedAlbum;
     const image = album?.image || album?.thumb || '';
     const albumName = album?.name ?? this.query;
+    const songs = this.albumTracks.length > 0
+      ? this.albumTracks
+      : this.itemsByType('track').filter((item) => (
+          !albumName ||
+          this.itemAlbum(item).toLowerCase() === albumName.toLowerCase()
+        ));
 
     return html`
       <div class="results">
@@ -2829,14 +3174,29 @@ export class GammaSonosPlayerCard extends LitElement {
             <span class="result-name">${albumName}</span>
             <span class="result-sub">Album</span>
           </div>
+          ${album
+            ? html`
+                <button
+                  class="small-action"
+                  ?disabled=${this.playbackPending}
+                  @click=${() => this.playSearchResult(album, 'play')}
+                >
+                  Play Album
+                </button>
+              `
+            : nothing}
           <button class="small-action" @click=${() => {
             this.browserView = 'results';
             this.selectedAlbum = undefined;
+            this.albumTracks = [];
+            this.albumError = '';
           }}>
             Back
           </button>
         </div>
-        ${this.renderResultSection('Songs', this.itemsByType('track'))}
+        ${this.albumLoading ? html`<div class="hint">Loading album tracks...</div>` : nothing}
+        ${this.albumError ? html`<div class="error">${this.albumError}</div>` : nothing}
+        ${this.renderResultSection('Songs', songs, 'play', false)}
       </div>
     `;
   }
@@ -2926,14 +3286,12 @@ export class GammaSonosPlayerCard extends LitElement {
 
           return html`
             <div
-              class="result ${action === 'artist' || action === 'album'
-                ? 'clickable'
-                : ''}"
+              class="result clickable"
               @click=${action === 'artist'
                 ? () => this.openArtist(item)
                 : action === 'album'
                   ? () => this.openAlbum(item)
-                  : () => this.playSearchResult(item)}
+                  : () => this.playSearchResult(item, 'play')}
             >
               <div
                 class="result-art"
@@ -3276,7 +3634,7 @@ class GammaSonosPlayerCardEditor extends LitElement {
               'music_assistant_config_entry_id',
               '01KQ...',
             )}
-            ${this.renderSelect('Enqueue Mode', 'enqueue_mode', ['next', 'play', 'replace', 'replace_next', 'add'], 'next')}
+            ${this.renderSelect('Enqueue Mode', 'enqueue_mode', ['play', 'next', 'replace', 'replace_next', 'add'], 'play')}
             ${this.renderNumberInput('Search Limit', 'search_limit', '8')}
           </div>
         </section>
