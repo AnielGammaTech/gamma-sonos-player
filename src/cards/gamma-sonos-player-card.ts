@@ -2044,15 +2044,22 @@ export class GammaSonosPlayerCard extends LitElement {
     this.groupError = '';
     this.playbackError = '';
 
-    const targetPlayer = this.selectedGroupIds
+    const targetPlayers = this.pendingGroupIds
       .map((id) => this.hass?.states[id])
-      .find((player): player is HassEntity => {
+      .filter((player): player is HassEntity => {
         if (!player) {
           return false;
         }
 
-        return player.entity_id !== this.playbackEntityId;
+        return player.entity_id !== this.playbackEntityId && player.entity_id !== this.activeEntityId;
       });
+
+    if (targetPlayers.length !== 1) {
+      this.groupError = 'Select exactly one room to transfer playback.';
+      return;
+    }
+
+    const targetPlayer = targetPlayers[0];
     const sourcePlayer = this.playbackPlayer;
     const sourceEntityId =
       this.matchingMusicAssistantPlayer(sourcePlayer)?.entity_id ?? this.playbackEntityId;
@@ -2063,6 +2070,7 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
+    this.groupPending = true;
     const result = this.service('music_assistant', 'transfer_queue', {
       source_player: sourceEntityId,
       auto_play: true,
@@ -2070,26 +2078,48 @@ export class GammaSonosPlayerCard extends LitElement {
       entity_id: targetEntityId,
     });
 
+    const applySuccess = () => {
+      this.selectedEntityId = targetEntityId;
+      this.pendingGroupIds = [];
+      this.queueItems = [];
+      this.queueError = '';
+      this.lastInitialQueueEntityId = '';
+      window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, targetEntityId);
+      this.refreshQueueAfterPlayback();
+    };
+
+    const finish = () => {
+      this.groupPending = false;
+    };
+
     if (result && typeof result.then === 'function') {
-      result.catch(() => {
-        const source = sourcePlayer;
-        const mediaId = String(source?.attributes.media_content_id ?? '');
-        const mediaType = String(source?.attributes.media_content_type ?? 'music');
+      result
+        .then(applySuccess)
+        .catch(() => {
+          const source = sourcePlayer;
+          const mediaId = String(source?.attributes.media_content_id ?? '');
+          const mediaType = String(source?.attributes.media_content_type ?? 'music');
 
-        if (!mediaId) {
-          this.playbackError = 'That queue is not available anymore. Pick a song from search to start this room.';
-          return;
-        }
+          if (!mediaId) {
+            this.playbackError = 'That queue is not available anymore. Pick a song from search to start this room.';
+            return;
+          }
 
-        this.service('music_assistant', 'play_media', {
-          media_id: mediaId,
-          media_type: mediaType,
-          enqueue: 'play',
-        }, {
-          entity_id: targetEntityId,
-        });
-      });
+          this.service('music_assistant', 'play_media', {
+            media_id: mediaId,
+            media_type: mediaType,
+            enqueue: 'play',
+          }, {
+            entity_id: targetEntityId,
+          });
+          applySuccess();
+        })
+        .finally(finish);
+      return;
     }
+
+    applySuccess();
+    window.setTimeout(finish, 700);
   }
 
   private ungroupActive(): void {
@@ -2524,33 +2554,12 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private queueServiceAttempts(entityId: string): QueueServiceAttempt[] {
-    const activeQueue = String(this.hass?.states[entityId]?.attributes.active_queue ?? '');
-
     return [
-      {
-        domain: 'mass_queue',
-        service: 'get_queue_items',
-        data: { entity: entityId, limit: 40, limit_before: 0, limit_after: 40 },
-      },
       {
         domain: 'music_assistant',
         service: 'get_queue',
         data: { entity_id: entityId },
       },
-      ...(activeQueue
-        ? [
-            {
-              domain: 'mass_queue',
-              service: 'get_queue_items',
-              data: { entity: entityId, queue_id: activeQueue, limit: 40, limit_before: 0, limit_after: 40 },
-            },
-            {
-              domain: 'music_assistant',
-              service: 'get_queue',
-              data: { queue_id: activeQueue },
-            },
-          ]
-        : []),
     ];
   }
 
@@ -2572,6 +2581,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
     try {
       const errors: string[] = [];
+      let gotQueueResponse = false;
 
       for (const attempt of this.queueServiceAttempts(entityId)) {
         try {
@@ -2582,14 +2592,12 @@ export class GammaSonosPlayerCard extends LitElement {
             service_data: attempt.data,
             return_response: true,
           });
+          gotQueueResponse = true;
           const items = this.extractQueueItems(response, entityId);
-
-          if (attempt.domain === 'mass_queue') {
-            errors.length = 0;
-          }
 
           if (items.length > 0) {
             this.queueItems = items;
+            this.queueError = '';
             return;
           }
         } catch (error) {
@@ -2598,7 +2606,9 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       this.queueItems = [];
-      this.queueError = errors.length > 0
+      this.queueError = gotQueueResponse
+        ? ''
+        : errors.length > 0
         ? errors[errors.length - 1]
         : 'Queue is empty or unavailable for this Music Assistant player.';
     } finally {
@@ -3156,9 +3166,15 @@ export class GammaSonosPlayerCard extends LitElement {
         groupablePlayers.some((groupable) => groupable.entity_id === player?.entity_id)
       );
     }).length;
-    const moveTargetCount = this.selectedGroupIds.filter(
-      (id) => id !== this.playbackEntityId,
-    ).length;
+    const moveTargetCount = this.pendingGroupIds.filter((id) => {
+      const player = this.hass?.states[id];
+      return Boolean(
+        player &&
+        id !== this.activeEntityId &&
+        id !== this.playbackEntityId &&
+        groupablePlayers.some((groupable) => groupable.entity_id === player.entity_id),
+      );
+    }).length;
     const groupMemberCount = this.groupMembers.length;
     const hasActiveGroup = groupMemberCount > 1;
 
