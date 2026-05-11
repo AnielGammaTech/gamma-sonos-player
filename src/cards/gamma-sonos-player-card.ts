@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import type { CSSResultGroup, TemplateResult } from 'lit';
 
-type EnqueueMode = 'replace' | 'play' | 'next' | 'add';
+type EnqueueMode = 'replace' | 'replace_next' | 'play' | 'next' | 'add';
 type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
 type PanelTab = 'now' | 'search' | 'queue' | 'speakers';
 type BrowserView = 'results' | 'artist' | 'album';
@@ -224,6 +224,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private selectedEntityId = '';
   private activeTab: PanelTab = 'now';
   private query = '';
+  private searchTimer?: number;
   private searching = false;
   private searchError = '';
   private playbackError = '';
@@ -1285,9 +1286,17 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private roomKey(player: HassEntity): string {
-    return String(player.attributes.friendly_name ?? player.entity_id)
+    return this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id));
+  }
+
+  private normalizedRoomName(value: string): string {
+    return value
       .trim()
       .toLowerCase()
+      .replace(/^media_player\./, '')
+      .replace(/_/g, ' ')
+      .replace(/\b(ma|mass)\b/g, '')
+      .replace(/\b(sonos|music assistant|speaker|player)\b/g, '')
       .replace(/\s+/g, ' ');
   }
 
@@ -1339,15 +1348,14 @@ export class GammaSonosPlayerCard extends LitElement {
     return this.allPlayers.find((player) => player.state === 'playing');
   }
 
+  private get currentlyPlayingPlayers(): HassEntity[] {
+    return this.allPlayers.filter((player) => player.state === 'playing');
+  }
+
   private get activePlayer(): HassEntity | undefined {
     const selected = this.hass?.states[this.selectedEntityId];
-    const playing = this.currentlyPlayingPlayer;
 
-    if (playing && selected?.state !== 'playing') {
-      return playing;
-    }
-
-    return selected ?? playing ?? this.allPlayers[0];
+    return selected ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
   }
 
   private get activeEntityId(): string {
@@ -1357,10 +1365,14 @@ export class GammaSonosPlayerCard extends LitElement {
   private get playbackPlayer(): HassEntity | undefined {
     const active = this.activePlayer;
 
-    return this.currentlyPlayingPlayer ??
-      (active && (active.attributes.media_title || active.attributes.entity_picture || active.attributes.entity_picture_local)
-        ? active
-        : undefined);
+    return active && (
+      active.state === 'playing' ||
+      active.attributes.media_title ||
+      active.attributes.entity_picture ||
+      active.attributes.entity_picture_local
+    )
+      ? active
+      : undefined;
   }
 
   private get playbackEntityId(): string {
@@ -1390,8 +1402,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get volume(): number {
-    const player = this.isPlaying ? this.playbackPlayer : this.activePlayer;
-    return Math.round(toNumber(player?.attributes.volume_level, 0) * 100);
+    return Math.round(toNumber(this.activePlayer?.attributes.volume_level, 0) * 100);
   }
 
   private get progressPercent(): number {
@@ -1514,14 +1525,19 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     const [, objectId = ''] = entity.entity_id.split('.');
-    const likelyEntityId = `media_player.${objectId}_2`;
-    const friendlyName = String(entity.attributes.friendly_name ?? '').trim().toLowerCase();
+    const likelyEntityIds = [
+      `media_player.${objectId}_2`,
+      `media_player.ma_${objectId}`,
+      `media_player.mass_${objectId}`,
+      `media_player.${objectId}_music_assistant`,
+    ];
+    const friendlyName = this.normalizedRoomName(String(entity.attributes.friendly_name ?? entity.entity_id));
 
     return (
-      this.mediaPlayers.find((player) => player.entity_id === likelyEntityId && isMusicAssistantPlayer(player)) ??
+      this.mediaPlayers.find((player) => likelyEntityIds.includes(player.entity_id) && isMusicAssistantPlayer(player)) ??
       this.mediaPlayers.find((player) => (
         isMusicAssistantPlayer(player) &&
-        String(player.attributes.friendly_name ?? '').trim().toLowerCase() === friendlyName
+        this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id)) === friendlyName
       ))
     );
   }
@@ -1889,6 +1905,18 @@ export class GammaSonosPlayerCard extends LitElement {
     }
   }
 
+  private scheduleSearch(): void {
+    window.clearTimeout(this.searchTimer);
+
+    if (this.query.trim().length < 2) {
+      return;
+    }
+
+    this.searchTimer = window.setTimeout(() => {
+      void this.searchMusicAssistant();
+    }, 350);
+  }
+
   private openArtist(item: SearchItem): void {
     this.selectedArtist = item;
     this.selectedAlbum = undefined;
@@ -1916,16 +1944,44 @@ export class GammaSonosPlayerCard extends LitElement {
       if (Array.isArray(value)) {
         value.forEach((item) => {
           if (typeof item === 'object' && item) {
-            items.push({
-              ...(item as SearchItem),
-              media_type: (bucket === 'tracks' ? 'track' : bucket.slice(0, -1)) as MediaType,
-            });
+            items.push(this.normalizeSearchItem(item as Record<string, unknown>, (bucket === 'tracks' ? 'track' : bucket.slice(0, -1)) as MediaType));
           }
         });
       }
     });
 
     return items;
+  }
+
+  private normalizeSearchItem(item: Record<string, unknown>, fallbackType: MediaType): SearchItem {
+    const album = typeof item.album === 'object' && item.album
+      ? item.album as { name?: string; image?: string }
+      : undefined;
+    const artists = Array.isArray(item.artists)
+      ? item.artists as Array<{ name?: string }>
+      : undefined;
+    const mediaType = String(item.media_type ?? item.type ?? fallbackType) as MediaType;
+    const image = String(
+      item.image ??
+        item.thumb ??
+        item.thumbnail ??
+        item.image_url ??
+        item.uri_image ??
+        album?.image ??
+        '',
+    );
+
+    return {
+      ...(item as SearchItem),
+      name: String(item.name ?? item.title ?? item.media_title ?? item.uri ?? ''),
+      uri: String(item.uri ?? item.media_id ?? item.media_content_id ?? '') || undefined,
+      media_type: mediaType,
+      type: mediaType,
+      artists,
+      artist: String(item.artist ?? item.media_artist ?? artists?.map((entry) => entry.name).filter(Boolean).join(', ') ?? ''),
+      album,
+      image: image || undefined,
+    };
   }
 
   private queueTargetEntityId(): string {
@@ -2027,6 +2083,10 @@ export class GammaSonosPlayerCard extends LitElement {
       this.valueAtPath(root, ['response', 'queue_items']),
       this.valueAtPath(root, ['response', 'next_items']),
       this.valueAtPath(root, ['response', 'upcoming_items']),
+      this.valueAtPath(root, ['current_item']),
+      this.valueAtPath(root, ['next_item']),
+      this.valueAtPath(root, ['response', 'current_item']),
+      this.valueAtPath(root, ['response', 'next_item']),
       root,
     ];
 
@@ -2068,6 +2128,12 @@ export class GammaSonosPlayerCard extends LitElement {
 
     if (typeof value === 'object' && value) {
       const objectValue = value as Record<string, unknown>;
+      const directItem = this.normalizeQueueItem(objectValue);
+
+      if (directItem) {
+        return [directItem];
+      }
+
       const nestedKeys = ['items', 'queue', 'queue_items', 'next_items', 'upcoming_items'];
 
       for (const key of nestedKeys) {
@@ -2157,6 +2223,18 @@ export class GammaSonosPlayerCard extends LitElement {
     });
   }
 
+  private itemArtist(item: SearchItem): string {
+    return String(
+      item.artist ||
+        item.artists?.map((entry) => entry.name).filter(Boolean).join(', ') ||
+        '',
+    );
+  }
+
+  private itemAlbum(item: SearchItem): string {
+    return String(item.album?.name ?? '');
+  }
+
   private playSearchResult(item: SearchItem, enqueueOverride?: EnqueueMode): void {
     if (this.playbackPending) {
       return;
@@ -2169,13 +2247,8 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
-    const configuredEnqueue =
-      enqueueOverride ?? this.config.enqueue_mode ?? DEFAULT_CONFIG.enqueue_mode;
-    const enqueue = enqueueOverride === 'next'
-      ? 'next'
-      : this.isPlaying || configuredEnqueue !== 'next'
-        ? configuredEnqueue
-        : 'play';
+    const configuredEnqueue = enqueueOverride ?? this.config.enqueue_mode ?? DEFAULT_CONFIG.enqueue_mode;
+    const enqueue = configuredEnqueue === 'next' && !this.isPlaying ? 'play' : configuredEnqueue;
     const targetPlayer = this.matchingMusicAssistantPlayer(this.activePlayer) ?? this.activePlayer;
     const targetEntityId = targetPlayer?.entity_id ?? this.activeEntityId;
 
@@ -2188,9 +2261,15 @@ export class GammaSonosPlayerCard extends LitElement {
       media_type: mediaType,
       enqueue,
     };
+    const artist = this.itemArtist(item);
+    const album = this.itemAlbum(item);
 
-    if (enqueue === 'play' && mediaType === 'track') {
-      serviceData.radio_mode = true;
+    if (artist && !String(mediaId).includes('://') && (mediaType === 'track' || mediaType === 'album')) {
+      serviceData.artist = artist;
+    }
+
+    if (album && !String(mediaId).includes('://') && mediaType === 'track') {
+      serviceData.album = album;
     }
 
     const result = this.service('music_assistant', 'play_media', serviceData, {
@@ -2277,17 +2356,11 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private renderRooms(): TemplateResult | typeof nothing {
     const players = this.allPlayers;
-    const playingPlayer = this.playbackPlayer;
+    const nowPlaying = this.currentlyPlayingPlayers;
 
-    if (players.length < 2 && !playingPlayer) {
+    if (players.length < 2 && nowPlaying.length === 0) {
       return nothing;
     }
-
-    const nowPlaying = playingPlayer
-      ? this.groupMembers
-          .map((entityId) => this.hass?.states[entityId])
-          .filter((player): player is HassEntity => Boolean(player && player.state === 'playing'))
-      : [];
 
     return html`
       <div class="rooms">
@@ -2654,6 +2727,7 @@ export class GammaSonosPlayerCard extends LitElement {
             placeholder="Search songs, albums, artists, playlists"
             @input=${(event: Event) => {
               this.query = (event.target as HTMLInputElement).value;
+              this.scheduleSearch();
             }}
             @keydown=${(event: KeyboardEvent) => {
               if (event.key === 'Enter') {
@@ -2680,7 +2754,7 @@ export class GammaSonosPlayerCard extends LitElement {
             : this.renderResults()
           : nothing}
         ${this.config.show_queue_hint
-          ? html`<div class="hint">Tap a result to add it next with Music Assistant.</div>`
+          ? html`<div class="hint">Tap a result to use your default queue mode, or use Now/Next for a specific action.</div>`
           : nothing}
       </section>
     `;
@@ -2859,7 +2933,7 @@ export class GammaSonosPlayerCard extends LitElement {
                 ? () => this.openArtist(item)
                 : action === 'album'
                   ? () => this.openAlbum(item)
-                  : () => this.playSearchResult(item, 'play')}
+                  : () => this.playSearchResult(item)}
             >
               <div
                 class="result-art"

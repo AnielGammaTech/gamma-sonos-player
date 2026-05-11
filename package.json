@@ -5,7 +5,7 @@
   "description": "A focused Home Assistant Lovelace card for Sonos and Music Assistant playback",
   "main": "gamma-sonos-player.js",
   "scripts": {
-    "build": "vite build && cp dist/gamma-sonos-player.js gamma-sonos-player.js && cp dist/gamma-sonos-player.js.map gamma-sonos-player.js.map",
+    "build": "vite build && node scripts/copy-dist.mjs",
     "demo": "vite --host 0.0.0.0",
     "preview": "vite preview --host 0.0.0.0",
     "test": "npm run build"
