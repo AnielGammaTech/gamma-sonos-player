@@ -541,7 +541,7 @@ export class GammaSonosPlayerCard extends LitElement {
         align-items: start;
         display: grid;
         gap: 8px 12px;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
         justify-content: initial;
       }
 
@@ -665,6 +665,14 @@ export class GammaSonosPlayerCard extends LitElement {
         padding: 4px 8px;
       }
 
+      .header-picker {
+        border-color: rgb(255 255 255 / 11%);
+        justify-self: start;
+        max-width: 100%;
+        min-height: 32px;
+        padding: 5px 9px;
+      }
+
       .player-picker select {
         appearance: none;
         background: transparent;
@@ -678,6 +686,12 @@ export class GammaSonosPlayerCard extends LitElement {
         outline: 0;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+
+      .header-picker select {
+        font-size: 17px;
+        font-weight: 800;
+        max-width: 170px;
       }
 
       .room.active,
@@ -1206,10 +1220,10 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .top-controls {
-        align-items: end;
-        display: grid;
+        align-items: start;
+        display: flex;
         gap: 4px;
-        justify-items: end;
+        justify-content: flex-end;
         min-width: 0;
       }
 
@@ -1242,22 +1256,26 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .next-up {
         color: var(--primary-text-color, #f4f7fb);
-        display: inline-flex;
-        flex: 1;
+        display: grid;
         font-size: 12px;
         font-weight: 720;
-        gap: 5px;
-        line-height: 1.2;
+        gap: 2px;
+        justify-items: end;
+        line-height: 1.15;
+        max-width: min(270px, 100%);
         min-width: 0;
         overflow: hidden;
-        white-space: nowrap;
+        text-align: right;
       }
 
       .next-up .next-title {
         color: var(--primary-text-color, #f4f7fb);
+        display: block;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 100%;
       }
 
       .next-up .next-label {
@@ -2975,9 +2993,9 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
-  private renderPlayerPicker(players: HassEntity[]): TemplateResult {
+  private renderPlayerPicker(players: HassEntity[], header = false): TemplateResult {
     return html`
-      <label class="player-picker">
+      <label class="player-picker ${header ? 'header-picker' : ''}">
         <ha-icon .icon=${'mdi:speaker'}></ha-icon>
         <select
           .value=${this.activeEntityId}
@@ -3011,10 +3029,23 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
+  private renderHeaderIdentity(unavailable: boolean, player?: HassEntity): TemplateResult {
+    const players = this.allPlayers;
+
+    return html`
+      <div class="title">
+        ${players.length > 1
+          ? this.renderPlayerPicker(players, true)
+          : html`<span class="name">${this.activeName || 'Sonos'}</span>`}
+        <span class="state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
+      </div>
+    `;
+  }
+
   private renderTopControls(): TemplateResult {
     return html`
       <div class="top-controls">
-        ${this.allPlayers.length > 1 ? this.renderPlayerPicker(this.allPlayers) : nothing}
+        ${this.renderNextUp()}
       </div>
     `;
   }
@@ -3774,13 +3805,7 @@ export class GammaSonosPlayerCard extends LitElement {
           "
         >
           <div class="topbar">
-            <div class="title">
-              <span class="name">${this.config.name || this.activeName || 'Sonos'}</span>
-              <span class="state-line">
-                <span class="state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
-                ${this.renderNextUp()}
-              </span>
-            </div>
+            ${this.renderHeaderIdentity(unavailable, player)}
             ${this.renderTopControls()}
           </div>
           ${this.renderRooms()}
