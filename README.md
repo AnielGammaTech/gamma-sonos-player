@@ -95,14 +95,20 @@ action: notify.mobile_app_aniels_iphone
 data:
   message: "{{ state_attr('media_player.lanai', 'media_title') }} — {{ state_attr('media_player.lanai', 'media_artist') }} • Vol {{ (state_attr('media_player.lanai', 'volume_level') * 100) | round(0) }}%"
   data:
-    command: live_activity
     live_update: true
     tag: gamma-sonos-player
-    title: Lanai Music
-    message: "{{ state_attr('media_player.lanai', 'media_title') }} — {{ state_attr('media_player.lanai', 'media_artist') }} • Vol {{ (state_attr('media_player.lanai', 'volume_level') * 100) | round(0) }}%"
     critical_text: "{{ 'PLAY' if is_state('media_player.lanai', 'playing') else 'PAUSE' }}"
     notification_icon: mdi:music-circle
     notification_icon_color: "#39d98a"
+    action_data:
+      command: live_activity
+      live_update: true
+      tag: gamma-sonos-player
+      title: Lanai Music
+      message: "{{ state_attr('media_player.lanai', 'media_title') }} — {{ state_attr('media_player.lanai', 'media_artist') }} • Vol {{ (state_attr('media_player.lanai', 'volume_level') * 100) | round(0) }}%"
+      critical_text: "{{ 'PLAY' if is_state('media_player.lanai', 'playing') else 'PAUSE' }}"
+      notification_icon: mdi:music-circle
+      notification_icon_color: "#39d98a"
 ```
 
 To end it:

@@ -1941,9 +1941,13 @@ export class GammaSonosPlayerCard extends LitElement {
       title: payload.title,
       message: String(payload.message ?? 'Music status'),
       data: {
-        command: 'live_activity',
         live_update: true,
         ...payload,
+        action_data: {
+          command: 'live_activity',
+          live_update: true,
+          ...payload,
+        },
       },
     });
 
