@@ -64,57 +64,6 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 | `height` | `string` | `auto` | Minimum card height. Use a CSS length to force a taller card. |
 | `background` | `string` | `#101722` | Base background. |
 | `accent_color` | `string` | `#39d98a` | Glow/accent color. |
-| `live_activity_enabled` | `boolean` | `true` | Start/update an iOS Home Assistant Live Activity. Turn this off in the dashboard editor to disable it. |
-| `live_activity_notify_service` | `string` | Optional | Your iPhone notify service, e.g. `notify.mobile_app_aniels_iphone`. |
-| `live_activity_tag` | `string` | `gamma-sonos-player` | Stable Live Activity ID used for updates/end. Use letters, numbers, `_`, `-`. |
-| `live_activity_auto_update` | `boolean` | `false` | Push Live Activity updates while the dashboard card is open. |
-
-## iOS Live Activities
-
-The card can start/update the generic Home Assistant iOS Live Activity for the selected media player. This shows the current room, track/artist, volume, playing state, icon, and progress on the Lock Screen / Dynamic Island.
-
-Important limitation: the current Home Assistant iOS Live Activity is display-only and its payload has no album-art field. It does not expose custom Play/Pause/Next buttons or artwork inside the Live Activity unless the Home Assistant iOS app/widget is extended.
-
-```yaml
-type: custom:gamma-sonos-player-card
-entity: media_player.lanai
-entities:
-  - media_player.lanai
-  - media_player.kitchen
-live_activity_enabled: true
-# Set false in the dashboard editor/YAML to disable.
-live_activity_notify_service: notify.mobile_app_aniels_iphone
-live_activity_tag: gamma-sonos-player
-live_activity_auto_update: true
-```
-
-`live_activity_auto_update` only runs while this dashboard card is open in a browser/app. For reliable background updates, create Home Assistant automations that call the same notify service when your media player changes:
-
-```yaml
-action: notify.mobile_app_aniels_iphone
-data:
-  message: live_activity
-  data:
-    command: live_activity
-    live_update: true
-    tag: gamma-sonos-player
-    title: Lanai Music
-    message: "{{ state_attr('media_player.lanai', 'media_title') }} — {{ state_attr('media_player.lanai', 'media_artist') }} • Vol {{ (state_attr('media_player.lanai', 'volume_level') * 100) | round(0) }}%"
-    critical_text: "{{ 'PLAY' if is_state('media_player.lanai', 'playing') else 'PAUSE' }}"
-    notification_icon: mdi:music-circle
-    notification_icon_color: "#39d98a"
-```
-
-To end it:
-
-```yaml
-action: notify.mobile_app_aniels_iphone
-data:
-  message: end_live_activity
-  data:
-    command: end_live_activity
-    tag: gamma-sonos-player
-```
 
 ## Notes
 
