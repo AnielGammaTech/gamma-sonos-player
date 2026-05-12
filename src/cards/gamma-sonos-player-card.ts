@@ -1939,7 +1939,7 @@ export class GammaSonosPlayerCard extends LitElement {
     const payload = this.liveActivityPayload(title, artist);
     const result = this.service('notify', notifyService, {
       title: payload.title,
-      message: String(payload.message ?? 'Music status'),
+      message: 'live_activity',
       data: {
         live_update: true,
         ...payload,
