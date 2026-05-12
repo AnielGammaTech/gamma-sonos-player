@@ -93,7 +93,7 @@ live_activity_auto_update: true
 ```yaml
 action: notify.mobile_app_aniels_iphone
 data:
-  message: "{{ state_attr('media_player.lanai', 'media_title') }} — {{ state_attr('media_player.lanai', 'media_artist') }} • Vol {{ (state_attr('media_player.lanai', 'volume_level') * 100) | round(0) }}%"
+  message: live_activity
   data:
     command: live_activity
     live_update: true
