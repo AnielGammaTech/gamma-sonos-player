@@ -1985,13 +1985,9 @@ const et = class et extends q {
       title: s.title,
       message: String(s.message ?? "Music status"),
       data: {
+        command: "live_activity",
         live_update: !0,
-        ...s,
-        action_data: {
-          command: "live_activity",
-          live_update: !0,
-          ...s
-        }
+        ...s
       }
     }), a = () => {
       this.liveActivityPending = !1;
