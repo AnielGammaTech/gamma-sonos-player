@@ -1983,7 +1983,7 @@ const et = class et extends q {
     this.liveActivityPending = !0, this.liveActivityError = "";
     const s = this.liveActivityPayload(t, e), r = this.service("notify", i, {
       title: s.title,
-      message: "live_activity",
+      message: String(s.message ?? "Music status"),
       data: {
         command: "live_activity",
         live_update: !0,
