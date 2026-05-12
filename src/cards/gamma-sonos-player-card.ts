@@ -69,6 +69,10 @@ interface GammaSonosPlayerConfig {
   show_grouping?: boolean;
   show_search?: boolean;
   show_queue_hint?: boolean;
+  live_activity_enabled?: boolean;
+  live_activity_auto_update?: boolean;
+  live_activity_notify_service?: string;
+  live_activity_tag?: string;
   background?: string;
   accent_color?: string;
 }
@@ -126,6 +130,9 @@ const DEFAULT_CONFIG: Required<
     | 'show_grouping'
     | 'show_search'
     | 'show_queue_hint'
+    | 'live_activity_enabled'
+    | 'live_activity_auto_update'
+    | 'live_activity_tag'
     | 'background'
     | 'accent_color'
   >
@@ -140,6 +147,9 @@ const DEFAULT_CONFIG: Required<
   show_grouping: true,
   show_search: true,
   show_queue_hint: true,
+  live_activity_enabled: true,
+  live_activity_auto_update: false,
+  live_activity_tag: 'gamma-sonos-player',
   background: '#101722',
   accent_color: '#39d98a',
 };
@@ -242,6 +252,8 @@ export class GammaSonosPlayerCard extends LitElement {
     playbackMemory: { state: true },
     transportPending: { state: true },
     favoriteItems: { state: true },
+    liveActivityPending: { state: true },
+    liveActivityError: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -285,6 +297,10 @@ export class GammaSonosPlayerCard extends LitElement {
   private initialQueueRefreshTimer?: number;
   private lastInitialQueueEntityId = '';
   private lastQueueSignature = '';
+  private liveActivityPending = false;
+  private liveActivityError = '';
+  private lastLiveActivitySignature = '';
+  private liveActivityUpdateTimer?: number;
 
   static get styles(): CSSResultGroup {
     return css`
@@ -1300,6 +1316,13 @@ export class GammaSonosPlayerCard extends LitElement {
         text-transform: uppercase;
       }
 
+      .live-activity-row {
+        display: inline-flex;
+        gap: 8px;
+        justify-content: center;
+        width: 100%;
+      }
+
       .small-action {
         appearance: none;
         background: rgb(255 255 255 / 7%);
@@ -1312,6 +1335,11 @@ export class GammaSonosPlayerCard extends LitElement {
         font-weight: 750;
         min-height: 28px;
         padding: 0 10px;
+      }
+
+      .live-action {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 18%, rgb(255 255 255 / 7%));
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 28%, rgb(255 255 255 / 10%));
       }
 
       .hint,
@@ -1368,6 +1396,7 @@ export class GammaSonosPlayerCard extends LitElement {
     this.rememberPlaybackState();
     this.scheduleInitialQueueRefresh();
     this.scheduleQueueRefreshForPlayback();
+    this.scheduleLiveActivityUpdate();
   }
 
   public disconnectedCallback(): void {
@@ -1376,6 +1405,7 @@ export class GammaSonosPlayerCard extends LitElement {
     window.clearTimeout(this.queueRefreshTimer);
     window.clearTimeout(this.queueRefreshRetryTimer);
     window.clearTimeout(this.initialQueueRefreshTimer);
+    window.clearTimeout(this.liveActivityUpdateTimer);
   }
 
   public getCardSize(): number {
@@ -1849,6 +1879,186 @@ export class GammaSonosPlayerCard extends LitElement {
     return this.service('media_player', service, data, {
       entity_id: entityId,
     });
+  }
+
+  private liveActivityNotifyService(): string {
+    const configured = this.config.live_activity_notify_service?.trim() ?? '';
+    return configured.replace(/^notify\./, '');
+  }
+
+  private liveActivityTag(): string {
+    const raw = this.config.live_activity_tag?.trim() || DEFAULT_CONFIG.live_activity_tag;
+    return raw.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 64) || 'gamma-sonos-player';
+  }
+
+  private liveActivityMessage(title: string, artist: string): string {
+    const room = this.activeName || 'Music';
+    if (title === 'No music selected') {
+      return `${room} is ready`;
+    }
+
+    return artist && artist !== 'Ready'
+      ? `${title} — ${artist} • ${room}`
+      : `${title} • ${room}`;
+  }
+
+  private liveActivityPayload(title: string, artist: string): Record<string, unknown> {
+    const duration = Math.round(toNumber(this.playbackPlayer?.attributes.media_duration, 0));
+    let position = Math.round((this.progressPercent / 100) * duration);
+
+    if (!Number.isFinite(position) || position < 0) {
+      position = 0;
+    }
+
+    const stateText = this.isPlaying ? 'PLAY' : title === 'No music selected' ? 'IDLE' : 'PAUSE';
+
+    return {
+      tag: this.liveActivityTag(),
+      title: this.config.name || this.activeName || 'Music',
+      message: this.liveActivityMessage(title, artist),
+      critical_text: stateText,
+      progress: duration > 0 ? position : undefined,
+      progress_max: duration > 0 ? duration : undefined,
+      notification_icon: this.isPlaying ? 'mdi:music-circle' : 'mdi:speaker',
+      notification_icon_color: this.config.accent_color ?? DEFAULT_CONFIG.accent_color,
+    };
+  }
+
+  private sendLiveActivity(title: string, artist: string): void {
+    const notifyService = this.liveActivityNotifyService();
+
+    if (!notifyService || this.liveActivityPending) {
+      if (!notifyService) {
+        this.liveActivityError = 'Set live_activity_notify_service to your iPhone notify service.';
+      }
+      return;
+    }
+
+    this.liveActivityPending = true;
+    this.liveActivityError = '';
+    const payload = this.liveActivityPayload(title, artist);
+    const result = this.service('notify', notifyService, {
+      title: payload.title,
+      message: 'live_activity',
+      data: {
+        command: 'live_activity',
+        live_update: true,
+        ...payload,
+      },
+    });
+
+    const finish = () => {
+      this.liveActivityPending = false;
+    };
+
+    if (result && typeof result.then === 'function') {
+      result
+        .catch((error: unknown) => {
+          this.liveActivityError = error instanceof Error ? error.message : 'Live Activity update failed.';
+        })
+        .finally(finish);
+      return;
+    }
+
+    window.setTimeout(finish, 600);
+  }
+
+  private endLiveActivity(): void {
+    const notifyService = this.liveActivityNotifyService();
+
+    if (!notifyService || this.liveActivityPending) {
+      if (!notifyService) {
+        this.liveActivityError = 'Set live_activity_notify_service to your iPhone notify service.';
+      }
+      return;
+    }
+
+    this.liveActivityPending = true;
+    this.liveActivityError = '';
+    this.lastLiveActivitySignature = '';
+    const result = this.service('notify', notifyService, {
+      message: 'end_live_activity',
+      data: {
+        command: 'end_live_activity',
+        tag: this.liveActivityTag(),
+      },
+    });
+
+    const finish = () => {
+      this.liveActivityPending = false;
+    };
+
+    if (result && typeof result.then === 'function') {
+      result
+        .catch((error: unknown) => {
+          this.liveActivityError = error instanceof Error ? error.message : 'Live Activity end failed.';
+        })
+        .finally(finish);
+      return;
+    }
+
+    window.setTimeout(finish, 600);
+  }
+
+  private scheduleLiveActivityUpdate(): void {
+    if (!this.config.live_activity_enabled || !this.config.live_activity_auto_update) {
+      return;
+    }
+
+    const notifyService = this.liveActivityNotifyService();
+    const player = this.playbackPlayer;
+
+    if (!notifyService || !player) {
+      return;
+    }
+
+    const signature = [
+      this.activeEntityId,
+      player.state,
+      player.attributes.media_title,
+      player.attributes.media_artist,
+      Math.round(this.progressPercent / 5),
+    ].join(':');
+
+    if (signature === this.lastLiveActivitySignature) {
+      return;
+    }
+
+    this.lastLiveActivitySignature = signature;
+    window.clearTimeout(this.liveActivityUpdateTimer);
+    this.liveActivityUpdateTimer = window.setTimeout(() => {
+      const title = player.attributes.media_title || this.activeMemory?.title || 'No music selected';
+      const artist =
+        player.attributes.media_artist ||
+        player.attributes.media_album_name ||
+        player.attributes.source ||
+        this.activeMemory?.artist ||
+        'Ready';
+      this.sendLiveActivity(title, artist);
+    }, 900);
+  }
+
+  private renderLiveActivityControls(title: string, artist: string): TemplateResult | typeof nothing {
+    if (!this.config.live_activity_enabled) {
+      return nothing;
+    }
+
+    const notifyService = this.liveActivityNotifyService();
+
+    return html`
+      <div class="live-activity-row">
+        <button
+          class="small-action live-action"
+          ?disabled=${!notifyService || this.liveActivityPending}
+          title=${notifyService ? 'Update iPhone Live Activity' : 'Configure live_activity_notify_service'}
+          @click=${() => this.sendLiveActivity(title, artist)}
+        >
+          ${this.liveActivityPending ? 'Updating…' : 'Update iPhone Live'}
+        </button>
+      </div>
+      ${this.liveActivityError ? html`<div class="error">${this.liveActivityError}</div>` : nothing}
+      <div class="hint">Shows song, artist, volume, playback state, and progress on iOS. Album art needs a custom HA iOS widget because the stock Live Activity payload has no artwork field.</div>
+    `;
   }
 
   private playPause(): void {
@@ -3380,6 +3590,7 @@ export class GammaSonosPlayerCard extends LitElement {
             <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
           </button>
         </div>
+        ${this.renderLiveActivityControls(title, artist)}
       </section>
     `;
   }
@@ -4089,6 +4300,8 @@ class GammaSonosPlayerCardEditor extends LitElement {
             )}
             ${this.renderSelect('Enqueue Mode', 'enqueue_mode', ['play', 'next', 'replace', 'replace_next', 'add'], 'play')}
             ${this.renderNumberInput('Search Limit', 'search_limit', '8')}
+            ${this.renderTextInput('iOS Notify Service', 'live_activity_notify_service', 'notify.mobile_app_aniels_iphone')}
+            ${this.renderTextInput('Live Activity Tag', 'live_activity_tag', 'gamma-sonos-player')}
           </div>
         </section>
 
@@ -4106,6 +4319,8 @@ class GammaSonosPlayerCardEditor extends LitElement {
             ${this.renderSwitch('Show Search', 'show_search', true)}
             ${this.renderSwitch('Show Grouping', 'show_grouping', true)}
             ${this.renderSwitch('Library Only', 'library_only', false)}
+            ${this.renderSwitch('iOS Live Activity', 'live_activity_enabled', true)}
+            ${this.renderSwitch('Auto-update Live Activity', 'live_activity_auto_update', false)}
           </div>
         </section>
       </div>
