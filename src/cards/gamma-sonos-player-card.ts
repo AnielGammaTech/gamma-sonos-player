@@ -2309,7 +2309,11 @@ export class GammaSonosPlayerCard extends LitElement {
       return undefined;
     }
 
-    if (isMusicAssistantPlayer(entity)) {
+    const configuredMusicAssistantIds = new Set(this.config.music_assistant_entities ?? []);
+    const isConfiguredMusicAssistantPlayer = (player: HassEntity): boolean =>
+      configuredMusicAssistantIds.has(player.entity_id);
+
+    if (isMusicAssistantPlayer(entity) || isConfiguredMusicAssistantPlayer(entity)) {
       return entity;
     }
 
@@ -2323,9 +2327,12 @@ export class GammaSonosPlayerCard extends LitElement {
     const friendlyName = this.normalizedRoomName(String(entity.attributes.friendly_name ?? entity.entity_id));
 
     return (
-      this.mediaPlayers.find((player) => likelyEntityIds.includes(player.entity_id) && isMusicAssistantPlayer(player)) ??
       this.mediaPlayers.find((player) => (
-        isMusicAssistantPlayer(player) &&
+        likelyEntityIds.includes(player.entity_id) &&
+        (isMusicAssistantPlayer(player) || isConfiguredMusicAssistantPlayer(player))
+      )) ??
+      this.mediaPlayers.find((player) => (
+        (isMusicAssistantPlayer(player) || isConfiguredMusicAssistantPlayer(player)) &&
         this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id)) === friendlyName
       ))
     );
@@ -3503,8 +3510,13 @@ export class GammaSonosPlayerCard extends LitElement {
       (configuredEnqueue === 'next' || configuredEnqueue === 'add') && !this.isPlaying
         ? 'play'
         : configuredEnqueue;
-    const targetPlayer = this.matchingMusicAssistantPlayer(this.activePlayer) ?? this.activePlayer;
-    const targetEntityId = targetPlayer?.entity_id ?? this.activeEntityId;
+    const targetPlayer = this.matchingMusicAssistantPlayer(this.activePlayer);
+    const targetEntityId = targetPlayer?.entity_id ?? '';
+
+    if (!targetPlayer || !targetEntityId) {
+      this.playbackError = `No Music Assistant player matches ${this.activeName || 'the selected speaker'}. Add its Music Assistant entity in the card settings.`;
+      return;
+    }
 
     this.playbackPending = true;
     this.writeStorage(LAST_PLAYER_STORAGE_KEY, targetEntityId);
@@ -3545,7 +3557,33 @@ export class GammaSonosPlayerCard extends LitElement {
           return;
         }
 
-        this.playbackError = this.errorMessage(error, 'Music Assistant playback failed.');
+        if (item.uri && item.name) {
+          const fallbackData: Record<string, unknown> = {
+            media_id: item.name,
+            media_type: mediaType,
+            enqueue,
+          };
+
+          if (artist && (mediaType === 'track' || mediaType === 'album')) {
+            fallbackData.artist = artist;
+          }
+
+          if (album && mediaType === 'track') {
+            fallbackData.album = album;
+          }
+
+          try {
+            await this.service('music_assistant', 'play_media', fallbackData, {
+              entity_id: targetEntityId,
+            });
+            return;
+          } catch (fallbackError) {
+            this.playbackError = `Could not play ${item.name} on ${targetPlayer.attributes.friendly_name ?? targetEntityId}: ${this.errorMessage(fallbackError, 'no playable result was found')}`;
+            return;
+          }
+        }
+
+        this.playbackError = `Could not play this item on ${targetPlayer.attributes.friendly_name ?? targetEntityId}: ${this.errorMessage(error, 'Music Assistant playback failed.')}`;
       })
       .finally(() => {
         this.playbackPending = false;
