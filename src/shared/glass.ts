@@ -21,14 +21,8 @@ export const glassTokens = css`
         transparent
       )
     );
-    --gamma-glass-border-color: color-mix(
-      in srgb,
-      var(--primary-text-color) 18%,
-      transparent
-    );
     --gamma-shadow-drop: 0 18px 46px rgb(0 0 0 / 28%);
     --gamma-shadow-highlight: inset 0 1px 0 rgb(255 255 255 / 10%);
-    --gamma-radius: var(--ha-card-border-radius, 16px);
     --gamma-motion-fast: 150ms;
     --gamma-motion: 250ms;
   }
