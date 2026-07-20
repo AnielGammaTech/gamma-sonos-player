@@ -1,0 +1,428 @@
+# Instincts generated from https://github.com/AnielGammaTech/gamma-sonos-player
+# Generated: 2026-07-20T15:25:22.135Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: gamma-sonos-player-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: feat, fix
+
+## Evidence
+
+- 2 commits analyzed
+- Detected conventional commit pattern
+- Examples: feat: glass surface and live volume slider fill, fix: drop unused glass tokens, run unit tests in npm test
+
+---
+id: gamma-sonos-player-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Commit Length
+
+## Action
+
+Write moderate-length commit messages (~52 characters)
+
+## Evidence
+
+- Average commit message length: 52 chars
+- Based on 2 commits
+
+---
+id: gamma-sonos-player-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Naming Files
+
+## Action
+
+Use kebab-case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: kebab-case
+
+---
+id: gamma-sonos-player-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: gamma-sonos-player-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: gamma-sonos-player-test-colocate
+trigger: "when writing tests"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Test Colocate
+
+## Action
+
+Place test file next to the source file (e.g., Button.test.tsx next to Button.tsx)
+
+## Evidence
+
+- Colocated test pattern detected
+- Tests live alongside source files
+
+---
+id: gamma-sonos-player-workflow-feature-development-with-preview-and-tests
+trigger: "when doing feature development with preview and tests"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Workflow Feature Development With Preview And Tests
+
+## Action
+
+Follow the feature-development-with-preview-and-tests workflow:
+1. Create or update UI component in src/cards/
+2. Add or update shared logic/helper in src/shared/
+3. Write unit tests for helper in src/shared/*.test.ts
+4. Update or add preview harness in tools/preview/ (index.html, .gitignore, shots/)
+5. Update package.json and package-lock.json if dependencies or scripts change
+6. Build and update dist/ and root .js/.js.map files
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: src/cards/*.ts, src/shared/*.ts, src/shared/*.test.ts
+
+---
+id: gamma-sonos-player-workflow-code-cleanup-and-test-integration
+trigger: "when doing code cleanup and test integration"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Workflow Code Cleanup And Test Integration
+
+## Action
+
+Follow the code-cleanup-and-test-integration workflow:
+1. Remove or refactor unused code in src/shared/
+2. Update package.json to include or modify test scripts
+3. Build and update dist/ and root .js/.js.map files
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: src/shared/*.ts, package.json, dist/gamma-sonos-player.js
+
+---
+id: gamma-sonos-player-instinct-file-naming
+trigger: "When creating a new file in the codebase"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct File Naming
+
+## Action
+
+Name the file using kebab-case (e.g., my-component.ts)
+
+## Evidence
+
+- Pattern in files: src/cards/*.ts, src/shared/*.ts
+
+---
+id: gamma-sonos-player-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Function Naming
+
+## Action
+
+Use camelCase for function names (e.g., getVolumeLevel)
+
+## Evidence
+
+- Pattern in files: src/cards/*.ts, src/shared/*.ts
+
+---
+id: gamma-sonos-player-instinct-class-naming
+trigger: "When declaring a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names (e.g., VolumeSlider)
+
+## Evidence
+
+- Pattern in files: src/cards/*.ts, src/shared/*.ts
+
+---
+id: gamma-sonos-player-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names (e.g., MAX_VOLUME)
+
+## Evidence
+
+- Pattern in files: src/shared/*.ts
+
+---
+id: gamma-sonos-player-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Import Style
+
+## Action
+
+Use relative import paths (e.g., import { foo } from '../shared/foo')
+
+## Evidence
+
+- Pattern in files: src/cards/*.ts, src/shared/*.ts
+
+---
+id: gamma-sonos-player-instinct-export-style
+trigger: "When exporting functions or classes"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Export Style
+
+## Action
+
+Use named exports (e.g., export function foo() {})
+
+## Evidence
+
+- Pattern in files: src/cards/*.ts, src/shared/*.ts
+
+---
+id: gamma-sonos-player-instinct-test-location
+trigger: "When writing unit tests for shared logic"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Test Location
+
+## Action
+
+Place test files alongside the code in src/shared/ as *.test.ts
+
+## Evidence
+
+- Pattern in files: src/shared/*.test.ts
+
+---
+id: gamma-sonos-player-instinct-test-type
+trigger: "When testing shared helpers"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Test Type
+
+## Action
+
+Write unit tests in TypeScript using the same naming conventions as the helper
+
+## Evidence
+
+- Pattern in files: src/shared/*.test.ts
+
+---
+id: gamma-sonos-player-instinct-preview-testing
+trigger: "When adding or modifying a UI component"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Preview Testing
+
+## Action
+
+Update or add a Playwright preview harness in tools/preview/ and add screenshots to tools/preview/shots/
+
+## Evidence
+
+- Pattern in files: tools/preview/index.html, tools/preview/shots/*.png
+
+---
+id: gamma-sonos-player-instinct-git-commit-format
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Git Commit Format
+
+## Action
+
+Use conventional commit prefixes: 'feat' for features, 'fix' for bug fixes, followed by a colon and a concise description
+
+## Evidence
+
+- Seen in commit: feat: glass surface and live volume slider fill
+- Seen in commit: fix: drop unused glass tokens, run unit tests in npm test
+
+---
+id: gamma-sonos-player-instinct-git-commit-length
+trigger: "When writing a commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Git Commit Length
+
+## Action
+
+Keep the commit message concise, around 50 characters on average
+
+## Evidence
+
+- Pattern: average commit message length is 52
+
+---
+id: gamma-sonos-player-instinct-feature-workflow
+trigger: "When adding a new interactive UI feature with visual feedback and test coverage"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Feature Workflow
+
+## Action
+
+Follow the 'feature-development-with-preview-and-tests' workflow: update src/cards/, src/shared/, add tests in src/shared/*.test.ts, update tools/preview/, update package files if needed, and rebuild dist/
+
+## Evidence
+
+- Workflow: feature-development-with-preview-and-tests
+- Files: src/cards/*.ts, src/shared/*.ts, src/shared/*.test.ts, tools/preview/*, package.json, dist/*
+
+---
+id: gamma-sonos-player-instinct-cleanup-workflow
+trigger: "When cleaning up unused code and improving test automation"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: AnielGammaTech/gamma-sonos-player
+---
+
+# Gamma Sonos Player Instinct Cleanup Workflow
+
+## Action
+
+Follow the 'code-cleanup-and-test-integration' workflow: remove unused code in src/shared/, update package.json test scripts, and rebuild dist/
+
+## Evidence
+
+- Workflow: code-cleanup-and-test-integration
+- Files: src/shared/*.ts, package.json, dist/*
+
