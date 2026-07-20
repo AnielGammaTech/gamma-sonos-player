@@ -142,11 +142,44 @@
         },
       };
 
+      const demoQueue = [
+        {
+          name: 'Nights',
+          uri: 'spotify://track/demo-nights',
+          artist: 'Frank Ocean',
+          queue_item_id: 'demo-queue-1',
+          image:
+            'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=240&q=80',
+        },
+        {
+          name: 'Electric Feel',
+          uri: 'spotify://track/demo-electric-feel',
+          artist: 'MGMT',
+          queue_item_id: 'demo-queue-2',
+          image:
+            'https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=240&q=80',
+        },
+        {
+          name: 'The Less I Know the Better',
+          uri: 'spotify://track/demo-less-i-know',
+          artist: 'Tame Impala',
+          queue_item_id: 'demo-queue-3',
+          image:
+            'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=240&q=80',
+        },
+        {
+          name: 'Midnight City',
+          uri: 'spotify://track/demo-midnight-city',
+          artist: 'M83',
+          queue_item_id: 'demo-queue-4',
+        },
+      ];
+
       const hass = {
         states,
         callService(domain, service, data, target) {
           console.log('service', domain, service, data, target);
-          const targetEntityId = target?.entity_id || data?.entity_id;
+          const targetEntityId = target?.entity_id || data?.entity_id || data?.entity;
           const entity = states[targetEntityId];
           if (!entity) return;
 
@@ -171,12 +204,38 @@
             entity.state = 'playing';
             entity.attributes.media_title = String(data.media_id || data.media_content_id || 'Search result');
             entity.attributes.media_artist = domain === 'music_assistant' ? 'Music Assistant' : 'Spotify/Sonos';
+
+            if ((data.enqueue === 'add' || data.enqueue === 'next') && data.media_id) {
+              demoQueue.push({
+                name: String(data.media_id).split('/').pop() || String(data.media_id),
+                uri: String(data.media_id),
+                artist: 'Added from Browse',
+                queue_item_id: `demo-queue-${Date.now()}`,
+              });
+            }
           }
 
           player.hass = { ...hass, states: { ...states } };
         },
         async callWS(message) {
           console.log('ws', message);
+
+          if (message.domain === 'music_assistant' && message.service === 'get_queue') {
+            const entityId = message.service_data?.entity_id || 'media_player.ma_lanai';
+            return {
+              response: {
+                [entityId]: {
+                  current_item: {
+                    name: states['media_player.lanai'].attributes.media_title,
+                    artist: states['media_player.lanai'].attributes.media_artist,
+                    uri: 'spotify://track/demo-current',
+                  },
+                  items: demoQueue,
+                },
+              },
+            };
+          }
+
           return {
             response: {
               tracks: [

@@ -39,9 +39,11 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 
 - Select speaker-like media players.
 - Play, pause, previous, next, mute, and volume.
+- See the next three songs beside Now Playing on wide cards or stacked below it on narrow cards.
+- Open a full numbered Up Next queue with the current track pinned above upcoming songs.
 - Group and ungroup speakers with `media_player.join` and `media_player.unjoin`.
-- Search Music Assistant for songs, albums, artists, and playlists.
-- Tap a result to add it next with `music_assistant.play_media`.
+- Browse Music Assistant for songs, albums, artists, and playlists.
+- Play a result immediately or use Next to add it to the queue with `music_assistant.play_media`.
 - Use the Speakers tab for grouping, ungrouping, and a collapsible per-speaker volume mixer.
 
 ## Options

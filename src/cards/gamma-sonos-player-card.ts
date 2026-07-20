@@ -148,6 +148,16 @@ const MEDIA_PLAYER_GROUPING_FEATURE = 524288;
 const LAST_PLAYER_STORAGE_KEY = 'gamma-sonos-player:last-player';
 const PLAYBACK_MEMORY_STORAGE_KEY = 'gamma-sonos-player:playback-memory';
 const FAVORITES_STORAGE_KEY = 'gamma-sonos-player:favorites';
+const SERVICE_TIMEOUT_MS = 10_000;
+const WEBSOCKET_TIMEOUT_MS = 12_000;
+const SEARCH_CACHE_TTL_MS = 2 * 60_000;
+const BROWSE_CACHE_TTL_MS = 5 * 60_000;
+const MAX_CACHE_ENTRIES = 30;
+
+type CachedItems = {
+  expiresAt: number;
+  items: SearchItem[];
+};
 
 function toNumber(value: unknown, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -283,8 +293,20 @@ export class GammaSonosPlayerCard extends LitElement {
   private queueRefreshTimer?: number;
   private queueRefreshRetryTimer?: number;
   private initialQueueRefreshTimer?: number;
+  private progressTimer?: number;
   private lastInitialQueueEntityId = '';
   private lastQueueSignature = '';
+  private queueRequestId = 0;
+  private cachedStates?: HomeAssistant['states'];
+  private cachedMediaPlayers: HassEntity[] = [];
+  private cachedAllPlayers: HassEntity[] = [];
+  private cachedPlayerConfigKey = '';
+  private searchCache = new Map<string, CachedItems>();
+  private browseCache = new Map<string, CachedItems>();
+  private volumeOverrides = new Map<string, number>();
+  private volumeCommitTimers = new Map<string, number>();
+  private volumeResetTimers = new Map<string, number>();
+  private volumeRenderFrame?: number;
 
   static get styles(): CSSResultGroup {
     return css`
@@ -402,9 +424,22 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .now-view {
         display: grid;
+        gap: 12px;
+        min-height: 0;
+      }
+
+      .now-layout {
+        align-items: start;
+        display: grid;
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .now-primary {
+        display: grid;
         gap: 10px;
         justify-items: center;
-        min-height: 0;
+        min-width: 0;
       }
 
       .now-artwork {
@@ -425,6 +460,17 @@ export class GammaSonosPlayerCard extends LitElement {
           box-shadow 180ms ease,
           border-color 180ms ease,
           opacity 180ms ease;
+      }
+
+      .now-artwork.empty {
+        background:
+          radial-gradient(circle at 50% 36%, color-mix(in srgb, var(--gamma-sonos-accent) 16%, transparent), transparent 42%),
+          linear-gradient(145deg, rgb(255 255 255 / 6%), rgb(255 255 255 / 2%));
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 18%, rgb(255 255 255 / 8%));
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 10%),
+          0 14px 28px rgb(0 0 0 / 18%);
+        width: min(250px, 64%);
       }
 
       .now-artwork img {
@@ -465,14 +511,170 @@ export class GammaSonosPlayerCard extends LitElement {
         align-items: center;
         color: var(--secondary-text-color, #b7c0ce);
         display: flex;
-        font-size: 12px;
-        font-weight: 750;
+        flex-direction: column;
+        font-size: 13px;
+        font-weight: 800;
+        gap: 10px;
         height: 100%;
         justify-content: center;
       }
 
+      .artwork-empty ha-icon {
+        --mdc-icon-size: 44px;
+        color: color-mix(in srgb, var(--gamma-sonos-accent) 62%, #ffffff 38%);
+        filter: drop-shadow(0 0 18px color-mix(in srgb, var(--gamma-sonos-accent) 28%, transparent));
+      }
+
+      .empty-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+      }
+
+      .empty-actions .small-action {
+        align-items: center;
+        display: inline-flex;
+        gap: 6px;
+        min-height: 34px;
+        padding: 0 13px;
+      }
+
+      .empty-actions .primary {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 22%, transparent);
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 34%, transparent);
+      }
+
+      .empty-actions ha-icon {
+        --mdc-icon-size: 17px;
+      }
+
       .now-view .metadata {
         width: 100%;
+      }
+
+      .up-next-card {
+        align-content: start;
+        align-self: stretch;
+        background:
+          linear-gradient(145deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 3%)),
+          color-mix(in srgb, var(--gamma-sonos-background) 94%, #000000 6%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 18px;
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+        display: grid;
+        gap: 10px;
+        min-width: 0;
+        padding: 12px;
+      }
+
+      .up-next-header,
+      .queue-title-row {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+        min-width: 0;
+      }
+
+      .up-next-title,
+      .queue-title {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .eyebrow {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 10px;
+        font-weight: 850;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .up-next-heading,
+      .queue-heading {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 16px;
+        font-weight: 850;
+        line-height: 1.1;
+      }
+
+      .queue-count {
+        align-items: center;
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 16%, transparent);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent);
+        border-radius: 999px;
+        color: var(--primary-text-color, #f4f7fb);
+        display: inline-flex;
+        flex: 0 0 auto;
+        font-size: 10px;
+        font-weight: 850;
+        height: 22px;
+        justify-content: center;
+        min-width: 22px;
+        padding: 0 6px;
+      }
+
+      .queue-preview-list {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .queue-empty {
+        align-items: center;
+        background: rgb(255 255 255 / 4%);
+        border: 1px dashed rgb(255 255 255 / 12%);
+        border-radius: 14px;
+        color: var(--secondary-text-color, #b7c0ce);
+        display: grid;
+        gap: 7px;
+        justify-items: center;
+        min-height: 116px;
+        padding: 14px;
+        text-align: center;
+      }
+
+      .queue-empty ha-icon {
+        --mdc-icon-size: 26px;
+        color: color-mix(in srgb, var(--gamma-sonos-accent) 60%, #ffffff 40%);
+      }
+
+      .queue-empty strong {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 13px;
+      }
+
+      .queue-empty span {
+        font-size: 11px;
+        line-height: 1.3;
+      }
+
+      .queue-empty-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: center;
+      }
+
+      .queue-empty-actions .small-action {
+        min-height: 30px;
+      }
+
+      @container (min-width: 620px) {
+        .now-layout.with-queue {
+          grid-template-columns: minmax(260px, 0.92fr) minmax(280px, 1.08fr);
+        }
+
+        .now-layout.with-queue .now-artwork {
+          max-width: min(300px, 88%);
+          width: min(300px, 88%);
+        }
+
+        .now-layout.with-queue .progress {
+          width: min(300px, 88%);
+        }
       }
 
       .progress {
@@ -613,11 +815,15 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .room,
       .tabs button {
+        align-items: center;
         background: transparent;
         border-radius: 999px;
         color: var(--secondary-text-color, #b7c0ce);
+        display: inline-flex;
         font-size: 12px;
         font-weight: 700;
+        gap: 5px;
+        justify-content: center;
         min-height: 28px;
         padding: 0 10px;
         white-space: nowrap;
@@ -1208,17 +1414,208 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .queue-header {
         align-items: center;
+        background: rgb(255 255 255 / 5%);
+        border: 1px solid rgb(255 255 255 / 8%);
+        border-radius: 16px;
         display: flex;
         gap: 10px;
         justify-content: space-between;
         min-width: 0;
+        padding: 10px 12px;
       }
 
       .queue-list {
         display: grid;
-        gap: 8px;
+        gap: 7px;
         max-height: 420px;
         overflow: auto;
+        padding-right: 2px;
+      }
+
+      .queue-current {
+        align-items: center;
+        background:
+          linear-gradient(145deg, color-mix(in srgb, var(--gamma-sonos-accent) 13%, transparent), rgb(255 255 255 / 3%));
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 22%, rgb(255 255 255 / 7%));
+        border-radius: 16px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 50px minmax(0, 1fr) auto;
+        min-width: 0;
+        padding: 9px;
+      }
+
+      .queue-current-art,
+      .queue-item-art {
+        aspect-ratio: 1;
+        background:
+          radial-gradient(circle, rgb(255 255 255 / 9%), transparent 68%),
+          rgb(255 255 255 / 6%);
+        background-position: center;
+        background-size: cover;
+        border: 1px solid rgb(255 255 255 / 9%);
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+      }
+
+      .queue-current-art {
+        height: 50px;
+        width: 50px;
+      }
+
+      .queue-current-art ha-icon,
+      .queue-item-art ha-icon {
+        --mdc-icon-size: 18px;
+        color: var(--secondary-text-color, #b7c0ce);
+      }
+
+      .queue-current-meta,
+      .queue-item-meta {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .queue-now-label {
+        color: var(--gamma-sonos-accent);
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .queue-current-title,
+      .queue-item-title,
+      .queue-item-subtitle {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .queue-current-title,
+      .queue-item-title {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .queue-item-subtitle {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 10.5px;
+      }
+
+      .playing-pulse {
+        background: var(--gamma-sonos-accent);
+        border-radius: 999px;
+        box-shadow: 0 0 14px color-mix(in srgb, var(--gamma-sonos-accent) 70%, transparent);
+        height: 8px;
+        margin-right: 6px;
+        width: 8px;
+      }
+
+      .queue-item {
+        align-items: center;
+        appearance: none;
+        background: rgb(255 255 255 / 4%);
+        border: 1px solid rgb(255 255 255 / 7%);
+        border-radius: 13px;
+        color: inherit;
+        cursor: pointer;
+        display: grid;
+        font: inherit;
+        gap: 8px;
+        grid-template-columns: 24px 42px minmax(0, 1fr) 32px;
+        min-width: 0;
+        padding: 7px;
+        text-align: left;
+        transition:
+          background 140ms ease,
+          border-color 140ms ease,
+          transform 140ms ease;
+        width: 100%;
+      }
+
+      .queue-item:hover {
+        background: rgb(255 255 255 / 7%);
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 24%, rgb(255 255 255 / 8%));
+      }
+
+      .queue-item:active {
+        transform: scale(0.992);
+      }
+
+      .queue-item.compact {
+        background: rgb(255 255 255 / 3%);
+        border-radius: 11px;
+        grid-template-columns: 20px 36px minmax(0, 1fr) 28px;
+        padding: 6px;
+      }
+
+      .queue-position {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 850;
+        text-align: center;
+      }
+
+      .queue-item-art {
+        height: 42px;
+        width: 42px;
+      }
+
+      .queue-item.compact .queue-item-art {
+        height: 36px;
+        width: 36px;
+      }
+
+      .queue-play {
+        align-items: center;
+        appearance: none;
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 16%, transparent);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 22%, transparent);
+        border-radius: 999px;
+        color: var(--primary-text-color, #f4f7fb);
+        cursor: pointer;
+        display: inline-flex;
+        height: 30px;
+        justify-content: center;
+        padding: 0;
+        width: 30px;
+      }
+
+      .queue-item.compact .queue-play {
+        height: 28px;
+        width: 28px;
+      }
+
+      .queue-play ha-icon {
+        --mdc-icon-size: 15px;
+      }
+
+      .queue-toolbar-actions {
+        align-items: center;
+        display: inline-flex;
+        flex: 0 0 auto;
+        gap: 6px;
+      }
+
+      .tab-count {
+        align-items: center;
+        background: rgb(255 255 255 / 10%);
+        border-radius: 999px;
+        display: inline-flex;
+        font-size: 9px;
+        height: 17px;
+        justify-content: center;
+        min-width: 17px;
+        padding: 0 4px;
+      }
+
+      .tabs button.active .tab-count {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 30%, transparent);
       }
 
       .top-controls {
@@ -1266,38 +1663,29 @@ export class GammaSonosPlayerCard extends LitElement {
         .player-picker select {
           max-width: 88px;
         }
-      }
 
-      .next-up {
-        color: var(--primary-text-color, #f4f7fb);
-        display: grid;
-        font-size: 12px;
-        font-weight: 720;
-        gap: 2px;
-        justify-items: end;
-        line-height: 1.15;
-        max-width: min(270px, 100%);
-        min-width: 0;
-        overflow: hidden;
-        text-align: right;
-      }
+        .tabs button {
+          padding: 0 6px;
+        }
 
-      .next-up .next-title {
-        color: var(--primary-text-color, #f4f7fb);
-        display: block;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        width: 100%;
-      }
+        .queue-item {
+          gap: 6px;
+          grid-template-columns: 20px 36px minmax(0, 1fr) 30px;
+        }
 
-      .next-up .next-label {
-        color: var(--secondary-text-color, #b7c0ce);
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
+        .queue-item-art {
+          height: 36px;
+          width: 36px;
+        }
+
+        .queue-current {
+          grid-template-columns: 42px minmax(0, 1fr) auto;
+        }
+
+        .queue-current-art {
+          height: 42px;
+          width: 42px;
+        }
       }
 
       .small-action {
@@ -1346,7 +1734,8 @@ export class GammaSonosPlayerCard extends LitElement {
   public setConfig(config: GammaSonosPlayerConfig): void {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.selectedEntityId =
-      this.config.entity || window.localStorage.getItem(LAST_PLAYER_STORAGE_KEY) || '';
+      this.config.entity || this.readStorage(LAST_PLAYER_STORAGE_KEY) || '';
+    this.cachedPlayerConfigKey = '';
     this.playbackMemory = this.readPlaybackMemory();
     this.favoriteItems = this.readFavoriteItems();
     this.style.setProperty(
@@ -1365,9 +1754,15 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   protected updated(): void {
+    if (!this.config) {
+      return;
+    }
+
+    this.reconcileVolumeOverrides();
     this.rememberPlaybackState();
     this.scheduleInitialQueueRefresh();
     this.scheduleQueueRefreshForPlayback();
+    this.syncProgressTimer();
   }
 
   public disconnectedCallback(): void {
@@ -1376,6 +1771,18 @@ export class GammaSonosPlayerCard extends LitElement {
     window.clearTimeout(this.queueRefreshTimer);
     window.clearTimeout(this.queueRefreshRetryTimer);
     window.clearTimeout(this.initialQueueRefreshTimer);
+    window.clearInterval(this.progressTimer);
+    window.cancelAnimationFrame(this.volumeRenderFrame ?? 0);
+    this.progressTimer = undefined;
+    this.volumeRenderFrame = undefined;
+    this.searchRequestId += 1;
+    this.albumRequestId += 1;
+    this.playlistRequestId += 1;
+    this.queueRequestId += 1;
+    this.volumeCommitTimers.forEach((timer) => window.clearTimeout(timer));
+    this.volumeResetTimers.forEach((timer) => window.clearTimeout(timer));
+    this.volumeCommitTimers.clear();
+    this.volumeResetTimers.clear();
   }
 
   public getCardSize(): number {
@@ -1394,9 +1801,18 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get mediaPlayers(): HassEntity[] {
-    return Object.values(this.hass?.states ?? {})
-      .filter((entity): entity is HassEntity => Boolean(entity))
-      .filter((entity) => entity.entity_id.startsWith('media_player.'));
+    const states = this.hass?.states;
+
+    if (states !== this.cachedStates) {
+      this.cachedStates = states;
+      this.cachedMediaPlayers = Object.values(states ?? {})
+        .filter((entity): entity is HassEntity => Boolean(entity))
+        .filter((entity) => entity.entity_id.startsWith('media_player.'));
+      this.cachedAllPlayers = [];
+      this.cachedPlayerConfigKey = '';
+    }
+
+    return this.cachedMediaPlayers;
   }
 
   private isDiscoverablePlayer(entity: HassEntity): boolean {
@@ -1447,11 +1863,15 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private preferredRoomPlayer(current: HassEntity, candidate: HassEntity): HassEntity {
-    if (isMusicAssistantPlayer(candidate) && !isMusicAssistantPlayer(current)) {
-      return candidate;
+    if (current.entity_id === this.selectedEntityId || candidate.entity_id === this.selectedEntityId) {
+      return candidate.entity_id === this.selectedEntityId ? candidate : current;
     }
 
-    if (!isUnavailable(candidate) && isUnavailable(current)) {
+    if (isUnavailable(current) !== isUnavailable(candidate)) {
+      return isUnavailable(current) ? candidate : current;
+    }
+
+    if (isMusicAssistantPlayer(candidate) && !isMusicAssistantPlayer(current)) {
       return candidate;
     }
 
@@ -1475,6 +1895,16 @@ export class GammaSonosPlayerCard extends LitElement {
       ...(this.config.entities ?? []),
       ...(this.config.music_assistant_entities ?? []),
     ];
+    const playerConfigKey = `${this.selectedEntityId}\u0001${configured.join('\u0000')}`;
+
+    // Reading mediaPlayers refreshes both caches when Home Assistant replaces its state map.
+    void this.mediaPlayers;
+
+    if (this.cachedAllPlayers.length > 0 && this.cachedPlayerConfigKey === playerConfigKey) {
+      return this.cachedAllPlayers;
+    }
+
+    let players: HassEntity[];
 
     if (configured.length > 0) {
       const configuredPlayers = configured
@@ -1484,10 +1914,14 @@ export class GammaSonosPlayerCard extends LitElement {
         .map((player) => this.matchingMusicAssistantPlayer(player))
         .filter((player): player is HassEntity => Boolean(player));
 
-      return this.dedupeRoomPlayers(this.dedupePlayers([...configuredPlayers, ...musicAssistantMatches]));
+      players = this.dedupeRoomPlayers(this.dedupePlayers([...configuredPlayers, ...musicAssistantMatches]));
+    } else {
+      players = this.dedupeRoomPlayers(this.cachedMediaPlayers.filter((entity) => this.isDiscoverablePlayer(entity)));
     }
 
-    return this.dedupeRoomPlayers(this.mediaPlayers.filter((entity) => this.isDiscoverablePlayer(entity)));
+    this.cachedPlayerConfigKey = playerConfigKey;
+    this.cachedAllPlayers = players;
+    return players;
   }
 
   private get currentlyPlayingPlayer(): HassEntity | undefined {
@@ -1548,7 +1982,15 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get volume(): number {
-    return Math.round(toNumber(this.activePlayer?.attributes.volume_level, 0) * 100);
+    const entityId = this.volumeEntityId;
+    const player = this.hass?.states[entityId];
+    const actualVolume = Math.round(toNumber(player?.attributes.volume_level, 0) * 100);
+
+    return this.volumeOverrides.get(entityId) ?? actualVolume;
+  }
+
+  private get volumeEntityId(): string {
+    return this.isPlaying ? this.playbackEntityId : this.activeEntityId;
   }
 
   private get progressPercent(): number {
@@ -1570,9 +2012,111 @@ export class GammaSonosPlayerCard extends LitElement {
     return Math.max(0, Math.min(100, (position / duration) * 100));
   }
 
+  private get hasProgress(): boolean {
+    return toNumber(this.playbackPlayer?.attributes.media_duration, 0) > 0;
+  }
+
+  private readStorage(key: string): string {
+    try {
+      return window.localStorage.getItem(key) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  private writeStorage(key: string, value: string): void {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Storage is optional; playback and speaker controls must continue without it.
+    }
+  }
+
+  private errorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error && error.message ? error.message : fallback;
+  }
+
+  private async withTimeout<T>(
+    operation: Promise<T>,
+    timeoutMs: number,
+    message: string,
+  ): Promise<T> {
+    let timeoutId: number | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    });
+
+    try {
+      return await Promise.race([operation, timeout]);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  private cacheKey(value: Record<string, unknown>): string {
+    return JSON.stringify(
+      Object.keys(value)
+        .sort()
+        .reduce<Record<string, unknown>>((sorted, key) => {
+          sorted[key] = value[key];
+          return sorted;
+        }, {}),
+    );
+  }
+
+  private cachedItems(cache: Map<string, CachedItems>, key: string): SearchItem[] | undefined {
+    const cached = cache.get(key);
+
+    if (!cached) {
+      return undefined;
+    }
+
+    if (cached.expiresAt <= Date.now()) {
+      cache.delete(key);
+      return undefined;
+    }
+
+    // Refresh insertion order so frequently reused entries are retained.
+    cache.delete(key);
+    cache.set(key, cached);
+    return cached.items;
+  }
+
+  private cacheItems(
+    cache: Map<string, CachedItems>,
+    key: string,
+    items: SearchItem[],
+    ttlMs: number,
+  ): void {
+    cache.delete(key);
+    cache.set(key, { expiresAt: Date.now() + ttlMs, items });
+
+    while (cache.size > MAX_CACHE_ENTRIES) {
+      const oldestKey = cache.keys().next().value as string | undefined;
+      if (!oldestKey) {
+        break;
+      }
+      cache.delete(oldestKey);
+    }
+  }
+
+  private syncProgressTimer(): void {
+    const shouldTick = this.isConnected && this.activeTab === 'now' && this.isPlaying && this.hasProgress;
+
+    if (shouldTick && this.progressTimer === undefined) {
+      this.progressTimer = window.setInterval(() => this.requestUpdate(), 1_000);
+      return;
+    }
+
+    if (!shouldTick && this.progressTimer !== undefined) {
+      window.clearInterval(this.progressTimer);
+      this.progressTimer = undefined;
+    }
+  }
+
   private readPlaybackMemory(): Record<string, PlaybackMemory> {
     try {
-      const parsed = JSON.parse(window.localStorage.getItem(PLAYBACK_MEMORY_STORAGE_KEY) || '{}');
+      const parsed = JSON.parse(this.readStorage(PLAYBACK_MEMORY_STORAGE_KEY) || '{}');
       return typeof parsed === 'object' && parsed ? parsed as Record<string, PlaybackMemory> : {};
     } catch {
       return {};
@@ -1580,16 +2124,12 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private writePlaybackMemory(memory: Record<string, PlaybackMemory>): void {
-    try {
-      window.localStorage.setItem(PLAYBACK_MEMORY_STORAGE_KEY, JSON.stringify(memory));
-    } catch {
-      // Local storage can be disabled in private browsing; the card still works without memory.
-    }
+    this.writeStorage(PLAYBACK_MEMORY_STORAGE_KEY, JSON.stringify(memory));
   }
 
   private readFavoriteItems(): SearchItem[] {
     try {
-      const parsed = JSON.parse(window.localStorage.getItem(FAVORITES_STORAGE_KEY) || '[]');
+      const parsed = JSON.parse(this.readStorage(FAVORITES_STORAGE_KEY) || '[]');
       if (!Array.isArray(parsed)) {
         return [];
       }
@@ -1604,11 +2144,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private writeFavoriteItems(items: SearchItem[]): void {
-    try {
-      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(items.slice(0, 60)));
-    } catch {
-      // Favorites are a convenience feature; playback should not depend on storage.
-    }
+    this.writeStorage(FAVORITES_STORAGE_KEY, JSON.stringify(items.slice(0, 60)));
   }
 
   private favoriteKey(item: SearchItem): string {
@@ -1831,19 +2367,33 @@ export class GammaSonosPlayerCard extends LitElement {
     service: string,
     data?: Record<string, unknown>,
     target?: Record<string, unknown>,
-  ): Promise<unknown> | void {
-    return this.hass?.callService(domain, service, data, target);
+  ): Promise<unknown> {
+    const hass = this.hass;
+
+    if (!hass) {
+      return Promise.reject(new Error('Home Assistant is not connected.'));
+    }
+
+    try {
+      return this.withTimeout(
+        Promise.resolve(hass.callService(domain, service, data, target)),
+        SERVICE_TIMEOUT_MS,
+        `${domain}.${service} timed out. Check the speaker connection and try again.`,
+      );
+    } catch (error) {
+      return Promise.reject(error);
+    }
   }
 
   private mediaService(
     service: string,
     data: Record<string, unknown> = {},
     entityId = this.activeEntityId,
-  ): Promise<unknown> | void {
+  ): Promise<unknown> {
     const player = this.hass?.states[entityId];
 
     if (!entityId || isUnavailable(player)) {
-      return;
+      return Promise.reject(new Error('That speaker is unavailable.'));
     }
 
     return this.service('media_player', service, data, {
@@ -1858,25 +2408,17 @@ export class GammaSonosPlayerCard extends LitElement {
 
     this.playbackError = '';
     this.playbackPending = true;
-    const result = this.mediaService(
+    void this.mediaService(
       this.isPlaying ? 'media_pause' : 'media_play',
       {},
       this.isPlaying ? this.playbackEntityId : this.activeEntityId,
-    );
-    const finish = () => {
-      this.playbackPending = false;
-    };
-
-    if (result && typeof result.then === 'function') {
-      result
-        .catch((error: unknown) => {
-          this.playbackError = error instanceof Error ? error.message : 'Playback control failed.';
-        })
-        .finally(finish);
-      return;
-    }
-
-    window.setTimeout(finish, 650);
+    )
+      .catch((error: unknown) => {
+        this.playbackError = this.errorMessage(error, 'Playback control failed.');
+      })
+      .finally(() => {
+        this.playbackPending = false;
+      });
   }
 
   private transportService(service: 'media_previous_track' | 'media_next_track'): void {
@@ -1895,42 +2437,99 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     this.transportPending = true;
-    const result = this.service('media_player', service, {}, {
+    void this.service('media_player', service, {}, {
       entity_id: targetEntityId,
-    });
-    const finish = () => {
-      this.transportPending = false;
-      if (service === 'media_next_track') {
-        this.refreshQueueAfterPlayback();
-      }
-    };
-
-    if (result && typeof result.then === 'function') {
-      result
-        .catch((error: unknown) => {
-          this.playbackError = error instanceof Error ? error.message : 'Playback control failed.';
-        })
-        .finally(finish);
-      return;
-    }
-
-    window.setTimeout(finish, 650);
+    })
+      .catch((error: unknown) => {
+        this.playbackError = this.errorMessage(error, 'Playback control failed.');
+      })
+      .finally(() => {
+        this.transportPending = false;
+        if (service === 'media_next_track') {
+          this.refreshQueueAfterPlayback();
+        }
+      });
   }
 
   private setVolume(value: string): void {
-    this.setPlayerVolume(this.isPlaying ? this.playbackEntityId : this.activeEntityId, value);
+    this.setPlayerVolume(this.volumeEntityId, value, true);
   }
 
-  private setPlayerVolume(entityId: string, value: string): void {
+  private setPlayerVolume(entityId: string, value: string, immediate = false): void {
     if (!entityId) {
       return;
     }
 
-    this.service('media_player', 'volume_set', {
-      volume_level: Math.max(0, Math.min(1, Number(value) / 100)),
-    }, {
-      entity_id: entityId,
+    const volume = Math.max(0, Math.min(100, Number(value)));
+    if (!Number.isFinite(volume)) {
+      return;
+    }
+
+    this.volumeOverrides.set(entityId, volume);
+    this.scheduleVolumeRender();
+    window.clearTimeout(this.volumeCommitTimers.get(entityId));
+
+    if (!immediate) {
+      const timer = window.setTimeout(() => {
+        this.volumeCommitTimers.delete(entityId);
+        void this.commitPlayerVolume(entityId, volume);
+      }, 140);
+      this.volumeCommitTimers.set(entityId, timer);
+      return;
+    }
+
+    this.volumeCommitTimers.delete(entityId);
+    void this.commitPlayerVolume(entityId, volume);
+  }
+
+  private async commitPlayerVolume(entityId: string, volume: number): Promise<void> {
+    this.playbackError = '';
+
+    try {
+      await this.service('media_player', 'volume_set', {
+        volume_level: volume / 100,
+      }, {
+        entity_id: entityId,
+      });
+    } catch (error) {
+      this.playbackError = this.errorMessage(error, 'Volume control failed.');
+    } finally {
+      window.clearTimeout(this.volumeResetTimers.get(entityId));
+      const timer = window.setTimeout(() => {
+        this.volumeResetTimers.delete(entityId);
+        this.volumeOverrides.delete(entityId);
+        this.requestUpdate();
+      }, 1_500);
+      this.volumeResetTimers.set(entityId, timer);
+    }
+  }
+
+  private reconcileVolumeOverrides(): void {
+    this.volumeOverrides.forEach((volume, entityId) => {
+      const player = this.hass?.states[entityId];
+      const actualVolume = Math.round(toNumber(player?.attributes.volume_level, -1) * 100);
+
+      if (actualVolume >= 0 && Math.abs(actualVolume - volume) <= 1) {
+        this.volumeOverrides.delete(entityId);
+        window.clearTimeout(this.volumeResetTimers.get(entityId));
+        this.volumeResetTimers.delete(entityId);
+      }
     });
+  }
+
+  private scheduleVolumeRender(): void {
+    if (this.volumeRenderFrame !== undefined) {
+      return;
+    }
+
+    this.volumeRenderFrame = window.requestAnimationFrame(() => {
+      this.volumeRenderFrame = undefined;
+      this.requestUpdate();
+    });
+  }
+
+  private updateVolumeLabel(event: Event): string {
+    return (event.target as HTMLInputElement).value;
   }
 
   private toggleMute(): void {
@@ -1944,10 +2543,13 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
-    this.service('media_player', 'volume_mute', {
+    this.playbackError = '';
+    void this.service('media_player', 'volume_mute', {
       is_volume_muted: !player.attributes.is_volume_muted,
     }, {
       entity_id: entityId,
+    }).catch((error: unknown) => {
+      this.playbackError = this.errorMessage(error, 'Mute control failed.');
     });
   }
 
@@ -2009,35 +2611,23 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     this.groupPending = true;
-    const result = this.service('media_player', 'join', {
+    void this.service('media_player', 'join', {
       group_members: groupMembers,
     }, {
       entity_id: resolved.anchor.entity_id,
-    });
-
-    const applySuccess = () => {
-      this.selectedEntityId = resolved.anchor.entity_id;
-      this.selectedGroupIds = [resolved.anchor.entity_id, ...groupMembers];
-      this.pendingGroupIds = [];
-      window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, resolved.anchor.entity_id);
-    };
-
-    if (result && typeof result.then === 'function') {
-      result
-        .then(applySuccess)
-        .catch((error: unknown) => {
-          this.groupError = error instanceof Error ? error.message : 'Grouping failed.';
-        })
-        .finally(() => {
-          this.groupPending = false;
-        });
-      return;
-    }
-
-    applySuccess();
-    window.setTimeout(() => {
-      this.groupPending = false;
-    }, 700);
+    })
+      .then(() => {
+        this.selectedEntityId = resolved.anchor.entity_id;
+        this.selectedGroupIds = [resolved.anchor.entity_id, ...groupMembers];
+        this.pendingGroupIds = [];
+        this.writeStorage(LAST_PLAYER_STORAGE_KEY, resolved.anchor.entity_id);
+      })
+      .catch((error: unknown) => {
+        this.groupError = this.errorMessage(error, 'Grouping failed.');
+      })
+      .finally(() => {
+        this.groupPending = false;
+      });
   }
 
   private continueInSelectedRoom(): void {
@@ -2070,42 +2660,36 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
-    this.groupPending = true;
-    const result = this.service('music_assistant', 'transfer_queue', {
-      source_player: sourceEntityId,
-      auto_play: true,
-    }, {
-      entity_id: targetEntityId,
-    });
-
     const applySuccess = () => {
       this.selectedEntityId = targetEntityId;
       this.pendingGroupIds = [];
       this.queueItems = [];
       this.queueError = '';
       this.lastInitialQueueEntityId = '';
-      window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, targetEntityId);
+      this.writeStorage(LAST_PLAYER_STORAGE_KEY, targetEntityId);
       this.refreshQueueAfterPlayback();
     };
 
-    const finish = () => {
-      this.groupPending = false;
-    };
+    this.groupPending = true;
+    void this.service('music_assistant', 'transfer_queue', {
+      source_player: sourceEntityId,
+      auto_play: true,
+    }, {
+      entity_id: targetEntityId,
+    })
+      .then(applySuccess)
+      .catch(async () => {
+        const source = sourcePlayer;
+        const mediaId = String(source?.attributes.media_content_id ?? '');
+        const mediaType = String(source?.attributes.media_content_type ?? 'music');
 
-    if (result && typeof result.then === 'function') {
-      result
-        .then(applySuccess)
-        .catch(() => {
-          const source = sourcePlayer;
-          const mediaId = String(source?.attributes.media_content_id ?? '');
-          const mediaType = String(source?.attributes.media_content_type ?? 'music');
+        if (!mediaId) {
+          this.playbackError = 'That queue is not available anymore. Pick a song from search to start this room.';
+          return;
+        }
 
-          if (!mediaId) {
-            this.playbackError = 'That queue is not available anymore. Pick a song from search to start this room.';
-            return;
-          }
-
-          this.service('music_assistant', 'play_media', {
+        try {
+          await this.service('music_assistant', 'play_media', {
             media_id: mediaId,
             media_type: mediaType,
             enqueue: 'play',
@@ -2113,13 +2697,13 @@ export class GammaSonosPlayerCard extends LitElement {
             entity_id: targetEntityId,
           });
           applySuccess();
-        })
-        .finally(finish);
-      return;
-    }
-
-    applySuccess();
-    window.setTimeout(finish, 700);
+        } catch (fallbackError) {
+          this.playbackError = this.errorMessage(fallbackError, 'Playback transfer failed.');
+        }
+      })
+      .finally(() => {
+        this.groupPending = false;
+      });
   }
 
   private ungroupActive(): void {
@@ -2128,21 +2712,19 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     this.groupPending = true;
-    const result = this.service('media_player', 'unjoin', {}, {
+    void this.service('media_player', 'unjoin', {}, {
       entity_id: this.activeEntityId,
-    });
-    const finish = () => {
-      this.selectedGroupIds = [];
-      this.pendingGroupIds = [];
-      this.groupPending = false;
-    };
-
-    if (result && typeof result.then === 'function') {
-      result.finally(finish);
-      return;
-    }
-
-    window.setTimeout(finish, 700);
+    })
+      .then(() => {
+        this.selectedGroupIds = [];
+        this.pendingGroupIds = [];
+      })
+      .catch((error: unknown) => {
+        this.groupError = this.errorMessage(error, 'Could not leave the speaker group.');
+      })
+      .finally(() => {
+        this.groupPending = false;
+      });
   }
 
   private ungroupAll(): void {
@@ -2152,20 +2734,20 @@ export class GammaSonosPlayerCard extends LitElement {
 
     this.groupPending = true;
     const results = this.groupMembers
-      .map((entityId) => this.service('media_player', 'unjoin', {}, { entity_id: entityId }))
-      .filter((result): result is Promise<unknown> => Boolean(result && typeof result.then === 'function'));
+      .map((entityId) => this.service('media_player', 'unjoin', {}, { entity_id: entityId }));
     const finish = () => {
       this.selectedGroupIds = [];
       this.pendingGroupIds = [];
       this.groupPending = false;
     };
 
-    if (results.length > 0) {
-      Promise.allSettled(results).finally(finish);
-      return;
-    }
-
-    window.setTimeout(finish, 700);
+    void Promise.allSettled(results)
+      .then((settled) => {
+        if (settled.some((result) => result.status === 'rejected')) {
+          this.groupError = 'Some speakers could not leave the group. Try them individually.';
+        }
+      })
+      .finally(finish);
   }
 
   private removeFromGroup(entityId: string): void {
@@ -2174,19 +2756,17 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     this.groupPending = true;
-    const result = this.service('media_player', 'unjoin', {}, { entity_id: entityId });
-    const finish = () => {
-      this.selectedGroupIds = this.selectedGroupIds.filter((id) => id !== entityId);
-      this.pendingGroupIds = this.pendingGroupIds.filter((id) => id !== entityId);
-      this.groupPending = false;
-    };
-
-    if (result && typeof result.then === 'function') {
-      result.finally(finish);
-      return;
-    }
-
-    window.setTimeout(finish, 700);
+    void this.service('media_player', 'unjoin', {}, { entity_id: entityId })
+      .then(() => {
+        this.selectedGroupIds = this.selectedGroupIds.filter((id) => id !== entityId);
+        this.pendingGroupIds = this.pendingGroupIds.filter((id) => id !== entityId);
+      })
+      .catch((error: unknown) => {
+        this.groupError = this.errorMessage(error, 'Could not remove that speaker.');
+      })
+      .finally(() => {
+        this.groupPending = false;
+      });
   }
 
   private musicAssistantSearchData(
@@ -2216,15 +2796,27 @@ export class GammaSonosPlayerCard extends LitElement {
       throw new Error('This Home Assistant frontend does not expose service responses here.');
     }
 
-    const response = await this.hass.callWS<Record<string, unknown>>({
-      type: 'call_service',
-      domain: 'music_assistant',
-      service: 'search',
-      service_data: serviceData,
-      return_response: true,
-    });
+    const key = this.cacheKey(serviceData);
+    const cached = this.cachedItems(this.searchCache, key);
+    if (cached) {
+      return cached;
+    }
 
-    return this.extractSearchResults(response);
+    const response = await this.withTimeout(
+      this.hass.callWS<Record<string, unknown>>({
+        type: 'call_service',
+        domain: 'music_assistant',
+        service: 'search',
+        service_data: serviceData,
+        return_response: true,
+      }),
+      WEBSOCKET_TIMEOUT_MS,
+      'Music search timed out. Check Music Assistant and try again.',
+    );
+    const items = this.extractSearchResults(response);
+
+    this.cacheItems(this.searchCache, key, items, SEARCH_CACHE_TTL_MS);
+    return items;
   }
 
   private async searchMusicAssistant(preserveArtist = false): Promise<void> {
@@ -2273,7 +2865,13 @@ export class GammaSonosPlayerCard extends LitElement {
     window.clearTimeout(this.searchTimer);
 
     if (this.query.trim().length < 2) {
+      this.searchRequestId += 1;
       this.searching = false;
+      this.searchError = '';
+      if (!this.query.trim()) {
+        this.searchResults = [];
+        this.browserView = 'results';
+      }
       return;
     }
 
@@ -2361,14 +2959,26 @@ export class GammaSonosPlayerCard extends LitElement {
       return [];
     }
 
-    const response = await this.hass.callWS<BrowseMediaNode>({
-      type: 'media_player/browse_media',
-      entity_id: entityId,
-      media_content_id: item.uri,
-      media_content_type: mediaType,
-    });
+    const cacheKey = `${entityId}:${mediaType}:${item.uri}`;
+    const cached = this.cachedItems(this.browseCache, cacheKey);
+    if (cached) {
+      return cached;
+    }
 
-    return this.extractBrowseTracks(response, item);
+    const response = await this.withTimeout(
+      this.hass.callWS<BrowseMediaNode>({
+        type: 'media_player/browse_media',
+        entity_id: entityId,
+        media_content_id: item.uri,
+        media_content_type: mediaType,
+      }),
+      WEBSOCKET_TIMEOUT_MS,
+      `Loading this ${mediaType} timed out. Try again.`,
+    );
+    const items = this.extractBrowseTracks(response, item);
+
+    this.cacheItems(this.browseCache, cacheKey, items, BROWSE_CACHE_TTL_MS);
+    return items;
   }
 
   private async searchAlbumTracks(album: SearchItem): Promise<SearchItem[]> {
@@ -2565,9 +3175,11 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private async refreshQueue(options: { silent?: boolean } = {}): Promise<void> {
     const entityId = this.queueTargetEntityId();
+    const requestId = ++this.queueRequestId;
 
     if (!entityId || !this.hass?.callWS) {
       this.queueItems = [];
+      this.queueLoading = false;
       this.queueError = entityId
         ? 'Queue responses are not available in this Home Assistant view.'
         : 'Queue is only available for Music Assistant speaker entities.';
@@ -2585,13 +3197,22 @@ export class GammaSonosPlayerCard extends LitElement {
 
       for (const attempt of this.queueServiceAttempts(entityId)) {
         try {
-          const response = await this.hass.callWS<Record<string, unknown>>({
-            type: 'call_service',
-            domain: attempt.domain,
-            service: attempt.service,
-            service_data: attempt.data,
-            return_response: true,
-          });
+          const response = await this.withTimeout(
+            this.hass.callWS<Record<string, unknown>>({
+              type: 'call_service',
+              domain: attempt.domain,
+              service: attempt.service,
+              service_data: attempt.data,
+              return_response: true,
+            }),
+            WEBSOCKET_TIMEOUT_MS,
+            'Queue refresh timed out. Check Music Assistant and try again.',
+          );
+
+          if (requestId !== this.queueRequestId || entityId !== this.queueTargetEntityId()) {
+            return;
+          }
+
           gotQueueResponse = true;
           const items = this.extractQueueItems(response, entityId);
 
@@ -2601,8 +3222,15 @@ export class GammaSonosPlayerCard extends LitElement {
             return;
           }
         } catch (error) {
+          if (requestId !== this.queueRequestId) {
+            return;
+          }
           errors.push(error instanceof Error ? error.message : `${attempt.domain}.${attempt.service} failed.`);
         }
+      }
+
+      if (requestId !== this.queueRequestId || entityId !== this.queueTargetEntityId()) {
+        return;
       }
 
       this.queueItems = [];
@@ -2612,7 +3240,7 @@ export class GammaSonosPlayerCard extends LitElement {
         ? errors[errors.length - 1]
         : 'Queue is empty or unavailable for this Music Assistant player.';
     } finally {
-      if (!options.silent) {
+      if (requestId === this.queueRequestId) {
         this.queueLoading = false;
       }
     }
@@ -2885,7 +3513,7 @@ export class GammaSonosPlayerCard extends LitElement {
     const targetEntityId = targetPlayer?.entity_id ?? this.activeEntityId;
 
     this.playbackPending = true;
-    window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, targetEntityId);
+    this.writeStorage(LAST_PLAYER_STORAGE_KEY, targetEntityId);
     this.selectedEntityId = targetEntityId;
     const mediaType = item.media_type || item.type || 'track';
     const serviceData: Record<string, unknown> = {
@@ -2908,69 +3536,46 @@ export class GammaSonosPlayerCard extends LitElement {
       serviceData.radio_mode = true;
     }
 
-    const result = this.service('music_assistant', 'play_media', serviceData, {
+    void this.service('music_assistant', 'play_media', serviceData, {
       entity_id: targetEntityId,
-    });
+    })
+      .catch(async (error: unknown) => {
+        if (serviceData.radio_mode) {
+          const fallbackData = { ...serviceData };
+          delete fallbackData.radio_mode;
 
-    if (result && typeof result.then === 'function') {
-      result
-        .catch(async (error: unknown) => {
-          if (serviceData.radio_mode) {
-            const fallbackData = { ...serviceData };
-            delete fallbackData.radio_mode;
-
-            try {
-              const fallback = this.service('music_assistant', 'play_media', fallbackData, {
-                entity_id: targetEntityId,
-              });
-
-              if (fallback && typeof fallback.then === 'function') {
-                await fallback;
-              }
-
-              return;
-            } catch (fallbackError) {
-              this.playbackError = fallbackError instanceof Error
-                ? fallbackError.message
-                : 'Music Assistant playback failed.';
-              return;
-            }
+          try {
+            await this.service('music_assistant', 'play_media', fallbackData, {
+              entity_id: targetEntityId,
+            });
+            return;
+          } catch (fallbackError) {
+            this.playbackError = this.errorMessage(fallbackError, 'Music Assistant playback failed.');
+            return;
           }
+        }
 
-          if (enqueue === 'next') {
-            const fallback = this.service('music_assistant', 'play_media', {
+        if (enqueue === 'next') {
+          try {
+            await this.service('music_assistant', 'play_media', {
               media_id: mediaId,
               media_type: mediaType,
               enqueue: 'add',
             }, {
               entity_id: targetEntityId,
             });
-
-            if (fallback && typeof fallback.then === 'function') {
-              return fallback.catch((fallbackError: unknown) => {
-                this.playbackError = fallbackError instanceof Error
-                  ? fallbackError.message
-                  : 'Music Assistant queue add failed.';
-              });
-            }
-
-            return undefined;
+          } catch (fallbackError) {
+            this.playbackError = this.errorMessage(fallbackError, 'Music Assistant queue add failed.');
           }
+          return;
+        }
 
-          this.playbackError = error instanceof Error ? error.message : 'Music Assistant playback failed.';
-          return undefined;
-        })
-        .finally(() => {
-          this.playbackPending = false;
-          this.refreshQueueAfterPlayback();
-        });
-      return;
-    }
-
-    window.setTimeout(() => {
-      this.playbackPending = false;
-      this.refreshQueueAfterPlayback();
-    }, 900);
+        this.playbackError = this.errorMessage(error, 'Music Assistant playback failed.');
+      })
+      .finally(() => {
+        this.playbackPending = false;
+        this.refreshQueueAfterPlayback();
+      });
   }
 
   private queueSearchResult(item: SearchItem): void {
@@ -2989,27 +3594,17 @@ export class GammaSonosPlayerCard extends LitElement {
     this.playbackPending = true;
     this.playbackError = '';
 
-    const result = this.service('mass_queue', 'play_queue_item', {
+    void this.service('mass_queue', 'play_queue_item', {
       entity: entityId,
       queue_item_id: queueItemId,
-    });
-
-    if (result && typeof result.then === 'function') {
-      result
-        .catch((error: unknown) => {
-          this.playbackError = error instanceof Error ? error.message : 'Queue item playback failed.';
-        })
-        .finally(() => {
-          this.playbackPending = false;
-          window.setTimeout(() => this.refreshQueue(), 500);
-        });
-      return;
-    }
-
-    window.setTimeout(() => {
-      this.playbackPending = false;
-      void this.refreshQueue();
-    }, 900);
+    })
+      .catch((error: unknown) => {
+        this.playbackError = this.errorMessage(error, 'Queue item playback failed.');
+      })
+      .finally(() => {
+        this.playbackPending = false;
+        this.refreshQueueAfterPlayback();
+      });
   }
 
   private renderRooms(): TemplateResult | typeof nothing {
@@ -3047,13 +3642,19 @@ export class GammaSonosPlayerCard extends LitElement {
             const entityId = (event.target as HTMLSelectElement).value;
             const player = this.hass?.states[entityId];
             this.selectedEntityId = entityId;
-            window.localStorage.setItem(LAST_PLAYER_STORAGE_KEY, entityId);
+            this.writeStorage(LAST_PLAYER_STORAGE_KEY, entityId);
             const members = player?.attributes.group_members;
             this.selectedGroupIds = Array.isArray(members) ? [...members] : [entityId];
             this.pendingGroupIds = [];
             this.queueItems = [];
             this.queueError = '';
+            this.queueLoading = false;
+            this.queueRequestId += 1;
+            this.lastQueueSignature = '';
             this.lastInitialQueueEntityId = '';
+            window.clearTimeout(this.queueRefreshTimer);
+            window.clearTimeout(this.queueRefreshRetryTimer);
+            window.clearTimeout(this.initialQueueRefreshTimer);
             if (this.activeTab === 'queue') {
               void this.refreshQueue();
             }
@@ -3090,23 +3691,7 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <div class="top-controls">
         <span class="header-state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
-        ${this.renderNextUp()}
       </div>
-    `;
-  }
-
-  private renderNextUp(): TemplateResult | typeof nothing {
-    const nextItem = this.queueItems[0];
-
-    if (!nextItem) {
-      return nothing;
-    }
-
-    return html`
-      <span class="next-up">
-        <span class="next-label">Next</span>
-        <span class="next-title">${nextItem.name ?? nextItem.uri ?? 'Queue item'}</span>
-      </span>
     `;
   }
 
@@ -3317,7 +3902,7 @@ export class GammaSonosPlayerCard extends LitElement {
             this.activeTab = 'search';
           }}
         >
-          Search
+          Browse
         </button>
         <button
           class=${this.activeTab === 'queue' ? 'active' : ''}
@@ -3327,6 +3912,9 @@ export class GammaSonosPlayerCard extends LitElement {
           }}
         >
           Queue
+          ${this.queueItems.length > 0
+            ? html`<span class="tab-count">${Math.min(this.queueItems.length, 99)}</span>`
+            : nothing}
         </button>
         <button
           class=${this.activeTab === 'speakers' ? 'active' : ''}
@@ -3342,45 +3930,144 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private renderNowPlaying(title: string, artist: string, unavailable: boolean): TemplateResult {
     const artworkUrl = this.artworkUrl;
+    const empty = !artworkUrl && title === 'No music selected';
 
     return html`
-      <section class="now-view">
-        <div class="now-artwork ${artworkUrl ? 'has-art' : ''}" aria-label="Current album artwork">
-          ${artworkUrl
-            ? html`<img src=${artworkUrl} alt="" loading="eager" decoding="async" />`
-            : html`<span class="artwork-empty">No artwork</span>`}
-        </div>
-        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${String(Math.round(this.progressPercent))}>
-          <div class="progress-fill" style=${`width: ${this.progressPercent}%`}></div>
-        </div>
-        <div class="metadata">
-          <span class="track">${title}</span>
-          <span class="artist">${artist}</span>
-        </div>
-        <div class="controls">
-          <button
-            class="icon-button"
-            ?disabled=${unavailable || this.transportPending}
-            @click=${() => this.transportService('media_previous_track')}
-          >
-            <ha-icon .icon=${'mdi:skip-previous'}></ha-icon>
-          </button>
-          <button
-            class="play-button ${this.playbackPending ? 'loading' : ''}"
-            ?disabled=${unavailable || this.playbackPending}
-            @click=${this.playPause}
-          >
-            <ha-icon .icon=${this.playbackPending ? 'mdi:loading' : this.isPlaying ? 'mdi:pause' : 'mdi:play'}></ha-icon>
-          </button>
-          <button
-            class="icon-button"
-            ?disabled=${unavailable || this.transportPending}
-            @click=${() => this.transportService('media_next_track')}
-          >
-            <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
-          </button>
+      <section class="now-view ${empty ? 'empty' : ''}">
+        <div class="now-layout ${empty ? '' : 'with-queue'}">
+          <div class="now-primary">
+            <div class="now-artwork ${artworkUrl ? 'has-art' : 'empty'}" aria-label="Current album artwork">
+              ${artworkUrl
+                ? html`<img src=${artworkUrl} alt="" loading="eager" decoding="async" />`
+                : html`
+                    <span class="artwork-empty">
+                      <ha-icon .icon=${'mdi:music-note'}></ha-icon>
+                      <span>${empty ? 'Ready to play' : 'Artwork unavailable'}</span>
+                    </span>
+                  `}
+            </div>
+            ${this.hasProgress
+              ? html`
+                  <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${String(Math.round(this.progressPercent))}>
+                    <div class="progress-fill" style=${`width: ${this.progressPercent}%`}></div>
+                  </div>
+                `
+              : nothing}
+            <div class="metadata">
+              <span class="track">${title}</span>
+              <span class="artist">${empty ? 'Browse Music Assistant or choose a room' : artist}</span>
+            </div>
+            ${empty
+              ? html`
+                  <div class="empty-actions">
+                    ${this.config.show_search
+                      ? html`
+                          <button class="small-action primary" @click=${() => {
+                            this.activeTab = 'search';
+                          }}>
+                            <ha-icon .icon=${'mdi:magnify'}></ha-icon>
+                            Browse music
+                          </button>
+                        `
+                      : nothing}
+                    ${this.config.show_grouping
+                      ? html`
+                          <button class="small-action" @click=${() => {
+                            this.activeTab = 'speakers';
+                          }}>
+                            <ha-icon .icon=${'mdi:speaker-multiple'}></ha-icon>
+                            Speakers
+                          </button>
+                        `
+                      : nothing}
+                  </div>
+                `
+              : nothing}
+            <div class="controls">
+              <button
+                class="icon-button"
+                aria-label="Previous track"
+                ?disabled=${unavailable || this.transportPending}
+                @click=${() => this.transportService('media_previous_track')}
+              >
+                <ha-icon .icon=${'mdi:skip-previous'}></ha-icon>
+              </button>
+              <button
+                class="play-button ${this.playbackPending ? 'loading' : ''}"
+                aria-label=${this.isPlaying ? 'Pause' : 'Play'}
+                ?disabled=${unavailable || this.playbackPending}
+                @click=${this.playPause}
+              >
+                <ha-icon .icon=${this.playbackPending ? 'mdi:loading' : this.isPlaying ? 'mdi:pause' : 'mdi:play'}></ha-icon>
+              </button>
+              <button
+                class="icon-button"
+                aria-label="Next track"
+                ?disabled=${unavailable || this.transportPending}
+                @click=${() => this.transportService('media_next_track')}
+              >
+                <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
+              </button>
+            </div>
+          </div>
+          ${empty ? nothing : this.renderUpNextPreview()}
         </div>
       </section>
+    `;
+  }
+
+  private renderUpNextPreview(): TemplateResult {
+    const previewItems = this.queueItems.slice(0, 3);
+
+    return html`
+      <aside class="up-next-card" aria-label="Upcoming queue">
+        <div class="up-next-header">
+          <span class="up-next-title">
+            <span class="eyebrow">Queue</span>
+            <span class="up-next-heading">Up Next</span>
+          </span>
+          <span class="queue-toolbar-actions">
+            ${this.queueItems.length > 0
+              ? html`<span class="queue-count">${this.queueItems.length}</span>`
+              : nothing}
+            <button class="small-action" @click=${() => {
+              this.activeTab = 'queue';
+              void this.refreshQueue();
+            }}>
+              View all
+            </button>
+          </span>
+        </div>
+        ${this.queueLoading && previewItems.length === 0
+          ? html`<div class="hint">Loading what’s next…</div>`
+          : nothing}
+        ${previewItems.length > 0
+          ? html`
+              <div class="queue-preview-list">
+                ${previewItems.map((item, index) => this.renderQueueItem(item, index, true))}
+              </div>
+            `
+          : nothing}
+        ${!this.queueLoading && previewItems.length === 0
+          ? html`
+              <div class="queue-empty">
+                <ha-icon .icon=${this.queueError ? 'mdi:playlist-alert' : 'mdi:playlist-plus'}></ha-icon>
+                <strong>${this.queueError ? 'Queue unavailable' : 'Nothing queued yet'}</strong>
+                <span>${this.queueError ? this.queueError : 'Browse for music and use Next to line up a song.'}</span>
+                <div class="queue-empty-actions">
+                  ${this.queueError
+                    ? html`<button class="small-action" @click=${() => this.refreshQueue()}>Retry</button>`
+                    : nothing}
+                  ${this.config.show_search
+                    ? html`<button class="small-action" @click=${() => {
+                        this.activeTab = 'search';
+                      }}>Browse music</button>`
+                    : nothing}
+                </div>
+              </div>
+            `
+          : nothing}
+      </aside>
     `;
   }
 
@@ -3388,28 +4075,93 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <section class="queue">
         <div class="queue-header">
-          <span class="section-title">Queue</span>
-          <button
-            class="small-action"
-            ?disabled=${this.queueLoading}
-            @click=${() => this.refreshQueue()}
-          >
-            Refresh
-          </button>
+          <span class="queue-title">
+            <span class="eyebrow">Music Assistant</span>
+            <span class="queue-heading">Up Next</span>
+          </span>
+          <span class="queue-toolbar-actions">
+            ${this.queueItems.length > 0
+              ? html`<span class="queue-count">${this.queueItems.length}</span>`
+              : nothing}
+            ${this.config.show_search
+              ? html`
+                  <button class="small-action" @click=${() => {
+                    this.activeTab = 'search';
+                  }}>
+                    Add music
+                  </button>
+                `
+              : nothing}
+            <button
+              class="small-action"
+              ?disabled=${this.queueLoading}
+              @click=${() => this.refreshQueue()}
+            >
+              Refresh
+            </button>
+          </span>
         </div>
+        ${this.renderQueueCurrent()}
         ${this.queueLoading ? html`<div class="hint">Loading queue...</div>` : nothing}
-        ${this.queueError ? html`<div class="error">${this.queueError}</div>` : nothing}
-        ${!this.queueLoading && this.queueItems.length === 0 && !this.queueError
-          ? html`<div class="hint">Queue is empty or unavailable for this speaker.</div>`
+        ${!this.queueLoading && this.queueItems.length === 0
+          ? html`
+              <div class="queue-empty">
+                <ha-icon .icon=${this.queueError ? 'mdi:playlist-alert' : 'mdi:playlist-plus'}></ha-icon>
+                <strong>${this.queueError ? 'Queue unavailable' : 'Your queue is open'}</strong>
+                <span>${this.queueError ? this.queueError : 'Find something in Browse and tap Next to add it here.'}</span>
+                <div class="queue-empty-actions">
+                  ${this.queueError
+                    ? html`<button class="small-action" @click=${() => this.refreshQueue()}>Retry</button>`
+                    : nothing}
+                  ${this.config.show_search
+                    ? html`<button class="small-action" @click=${() => {
+                        this.activeTab = 'search';
+                      }}>Browse music</button>`
+                    : nothing}
+                </div>
+              </div>
+            `
           : nothing}
         ${this.queueItems.length > 0
           ? html`
               <div class="queue-list">
-                ${this.queueItems.map((item) => this.renderQueueItem(item))}
+                ${this.queueItems.map((item, index) => this.renderQueueItem(item, index))}
               </div>
             `
           : nothing}
       </section>
+    `;
+  }
+
+  private renderQueueCurrent(): TemplateResult | typeof nothing {
+    const player = this.playbackPlayer;
+    const title = String(player?.attributes.media_title ?? this.activeMemory?.title ?? '');
+
+    if (!title) {
+      return nothing;
+    }
+
+    const artist = String(
+      player?.attributes.media_artist ||
+        player?.attributes.media_album_name ||
+        player?.attributes.source ||
+        this.activeMemory?.artist ||
+        '',
+    );
+    const artwork = this.artworkUrl;
+
+    return html`
+      <div class="queue-current">
+        <div class="queue-current-art" style=${artwork ? `background-image: url("${artwork}")` : ''}>
+          ${artwork ? nothing : html`<ha-icon .icon=${'mdi:music-note'}></ha-icon>`}
+        </div>
+        <span class="queue-current-meta">
+          <span class="queue-now-label">Now playing</span>
+          <span class="queue-current-title">${title}</span>
+          <span class="queue-item-subtitle">${artist}</span>
+        </span>
+        <span class="playing-pulse" aria-label=${this.isPlaying ? 'Playing' : 'Paused'}></span>
+      </div>
     `;
   }
 
@@ -3420,13 +4172,13 @@ export class GammaSonosPlayerCard extends LitElement {
 
     return html`
       <section class="search">
-        <span class="section-title">Music Assistant Search</span>
+        <span class="section-title">Browse Music Assistant</span>
         <div class="search-row">
           <ha-icon .icon=${'mdi:magnify'}></ha-icon>
           <input
             type="search"
             .value=${this.query}
-            placeholder="Search songs, albums, artists, playlists"
+            placeholder="Find songs, albums, artists, playlists"
             @input=${(event: Event) => {
               this.query = (event.target as HTMLInputElement).value;
               this.scheduleSearch();
@@ -3447,7 +4199,6 @@ export class GammaSonosPlayerCard extends LitElement {
         </div>
         ${this.renderFavorites()}
         ${this.searchError ? html`<div class="error">${this.searchError}</div>` : nothing}
-        ${this.playbackError ? html`<div class="error">${this.playbackError}</div>` : nothing}
         ${this.searching ? html`<div class="hint">Searching...</div>` : nothing}
         ${this.searchResults.length > 0
           ? this.browserView === 'artist'
@@ -3459,7 +4210,7 @@ export class GammaSonosPlayerCard extends LitElement {
             : this.renderResults()
           : nothing}
         ${this.config.show_queue_hint
-          ? html`<div class="hint">Tap a result to start playback, or use Next to queue it after the current song.</div>`
+          ? html`<div class="hint">Tap a result to play it now, or use Next to add it to Up Next.</div>`
           : nothing}
       </section>
     `;
@@ -3659,7 +4410,8 @@ export class GammaSonosPlayerCard extends LitElement {
               <div class="speaker-list">
                 ${this.allPlayers.map((player) => {
                   const unavailable = isUnavailable(player);
-                  const volume = Math.round(toNumber(player.attributes.volume_level, 0) * 100);
+                  const actualVolume = Math.round(toNumber(player.attributes.volume_level, 0) * 100);
+                  const volume = this.volumeOverrides.get(player.entity_id) ?? actualVolume;
 
                   return html`
                     <div class="speaker-row">
@@ -3680,11 +4432,15 @@ export class GammaSonosPlayerCard extends LitElement {
                         max="100"
                         .value=${String(volume)}
                         ?disabled=${unavailable}
-                        @change=${(event: Event) =>
-                          this.setPlayerVolume(
-                            player.entity_id,
-                            (event.target as HTMLInputElement).value,
-                          )}
+                        aria-label=${`${player.attributes.friendly_name ?? player.entity_id} volume`}
+                        @input=${(event: Event) => {
+                          const value = this.updateVolumeLabel(event);
+                          this.setPlayerVolume(player.entity_id, value);
+                        }}
+                        @change=${(event: Event) => {
+                          const value = this.updateVolumeLabel(event);
+                          this.setPlayerVolume(player.entity_id, value, true);
+                        }}
                       />
                       <span class="state">${volume}%</span>
                     </div>
@@ -3784,7 +4540,7 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
-  private renderQueueItem(item: SearchItem): TemplateResult {
+  private renderQueueItem(item: SearchItem, index = 0, compact = false): TemplateResult {
     const artist =
       item.artist ||
       item.artists?.map((entry) => entry.name).filter(Boolean).join(', ') ||
@@ -3793,34 +4549,28 @@ export class GammaSonosPlayerCard extends LitElement {
       item.type ||
       '';
     const image = item.image || item.thumb || item.album?.image || '';
+    const name = item.name ?? item.uri ?? 'Untitled';
 
     return html`
-      <div class="result clickable" @click=${() => this.playQueueItem(item)}>
-        <div
-          class="result-art"
-          style=${image ? `background-image: url("${image}")` : ''}
-        ></div>
-        <div class="result-main">
-          <span class="result-name">${item.name ?? item.uri ?? 'Untitled'}</span>
-          <span class="result-sub">${artist}</span>
-        </div>
-        ${item.uri
-          ? html`
-              <span class="result-actions">
-                <button
-                  class="now"
-                  ?disabled=${this.playbackPending}
-                  @click=${(event: Event) => {
-                    event.stopPropagation();
-                    this.playQueueItem(item);
-                  }}
-                >
-                  Play
-                </button>
-              </span>
-            `
-          : nothing}
-      </div>
+      <button
+        class="queue-item ${compact ? 'compact' : ''}"
+        type="button"
+        aria-label=${`Play ${name}`}
+        ?disabled=${this.playbackPending}
+        @click=${() => this.playQueueItem(item)}
+      >
+        <span class="queue-position">${index + 1}</span>
+        <span class="queue-item-art" style=${image ? `background-image: url("${image}")` : ''}>
+          ${image ? nothing : html`<ha-icon .icon=${'mdi:music-note'}></ha-icon>`}
+        </span>
+        <span class="queue-item-meta">
+          <span class="queue-item-title">${name}</span>
+          <span class="queue-item-subtitle">${artist || 'Music Assistant'}</span>
+        </span>
+        <span class="queue-play" aria-hidden="true">
+          <ha-icon .icon=${'mdi:play'}></ha-icon>
+        </span>
+      </button>
     `;
   }
 
@@ -3864,7 +4614,7 @@ export class GammaSonosPlayerCard extends LitElement {
           ${this.renderRooms()}
           ${this.renderMiniPlayer(title, artist, unavailable)}
           <div class="volume-row">
-            <button class="icon-button" ?disabled=${unavailable} @click=${this.toggleMute}>
+            <button class="icon-button" aria-label="Mute speaker" ?disabled=${unavailable} @click=${this.toggleMute}>
               <ha-icon .icon=${(this.isPlaying ? this.playbackPlayer : this.activePlayer)?.attributes.is_volume_muted ? 'mdi:volume-off' : 'mdi:volume-high'}></ha-icon>
             </button>
             <input
@@ -3873,18 +4623,26 @@ export class GammaSonosPlayerCard extends LitElement {
               max="100"
               .value=${String(this.volume)}
               ?disabled=${unavailable}
-              @change=${(event: Event) => this.setVolume((event.target as HTMLInputElement).value)}
+              aria-label="Speaker volume"
+              @input=${(event: Event) => {
+                const value = this.updateVolumeLabel(event);
+                this.setPlayerVolume(this.volumeEntityId, value);
+              }}
+              @change=${(event: Event) => this.setVolume(this.updateVolumeLabel(event))}
             />
             <span class="state">${this.volume}%</span>
           </div>
-	          ${this.renderTabs()}
-	          ${this.activeTab === 'now'
-	            ? this.renderNowPlaying(title, artist, unavailable)
-	            : this.activeTab === 'search'
-	              ? this.renderSearch()
-	              : this.activeTab === 'queue'
-	                ? this.renderQueue()
-	                : this.renderSpeakers()}
+          ${this.playbackError
+            ? html`<div class="error" role="alert">${this.playbackError}</div>`
+            : nothing}
+          ${this.renderTabs()}
+          ${this.activeTab === 'now'
+            ? this.renderNowPlaying(title, artist, unavailable)
+            : this.activeTab === 'search'
+              ? this.renderSearch()
+              : this.activeTab === 'queue'
+                ? this.renderQueue()
+                : this.renderSpeakers()}
         </div>
       </ha-card>
     `;
