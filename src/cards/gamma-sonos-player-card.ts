@@ -1,5 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import type { CSSResultGroup, TemplateResult } from 'lit';
+import { glassTokens } from '../shared/glass';
+import { volumeFillPercent } from '../shared/volume-fill';
 
 type EnqueueMode = 'replace' | 'replace_next' | 'play' | 'next' | 'add';
 type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
@@ -287,7 +289,9 @@ export class GammaSonosPlayerCard extends LitElement {
   private lastQueueSignature = '';
 
   static get styles(): CSSResultGroup {
-    return css`
+    return [
+      glassTokens,
+      css`
       :host {
         --gamma-sonos-width: 420px;
         --gamma-sonos-height: 620px;
@@ -307,19 +311,17 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .player {
+        backdrop-filter: var(--gamma-glass-blur);
+        -webkit-backdrop-filter: var(--gamma-glass-blur);
         background:
           radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--gamma-sonos-accent) 16%, transparent), transparent 38%),
           radial-gradient(circle at 16% 18%, rgb(255 255 255 / 7%), transparent 32%),
-          linear-gradient(
-            145deg,
-            color-mix(in srgb, var(--gamma-sonos-background) 92%, #ffffff 8%),
-            color-mix(in srgb, var(--gamma-sonos-background) 92%, #000000 14%)
-          );
+          var(--gamma-glass-bg);
         border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 20%, transparent);
         border-radius: 22px;
         box-shadow:
-          inset 0 1px 0 rgb(255 255 255 / 9%),
-          0 18px 36px rgb(0 0 0 / 28%),
+          var(--gamma-shadow-highlight),
+          var(--gamma-shadow-drop),
           0 0 54px color-mix(in srgb, var(--gamma-sonos-accent) 9%, transparent);
         box-sizing: border-box;
         color: var(--primary-text-color, #f4f7fb);
@@ -814,9 +816,59 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       input[type='range'] {
-        accent-color: var(--gamma-sonos-accent);
+        --_fill: 0%;
+        appearance: none;
+        -webkit-appearance: none;
+        background: transparent;
+        cursor: pointer;
         flex: 1;
+        height: 22px;
         min-width: 0;
+      }
+      input[type='range']::-webkit-slider-runnable-track {
+        background: linear-gradient(
+          to right,
+          var(--gamma-sonos-accent) var(--_fill),
+          color-mix(in srgb, var(--primary-text-color, #e8ecf4) 16%, transparent) var(--_fill)
+        );
+        border-radius: 999px;
+        height: 6px;
+      }
+      input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        background: #ffffff;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
+        height: 16px;
+        margin-top: -5px;
+        transition: transform var(--gamma-motion-fast) ease;
+        width: 16px;
+      }
+      input[type='range']:active::-webkit-slider-thumb {
+        transform: scale(1.18);
+      }
+      input[type='range']::-moz-range-track {
+        background: color-mix(in srgb, var(--primary-text-color, #e8ecf4) 16%, transparent);
+        border-radius: 999px;
+        height: 6px;
+      }
+      input[type='range']::-moz-range-progress {
+        background: var(--gamma-sonos-accent);
+        border-radius: 999px;
+        height: 6px;
+      }
+      input[type='range']::-moz-range-thumb {
+        background: #ffffff;
+        border: 0;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
+        height: 16px;
+        transition: transform var(--gamma-motion-fast) ease;
+        width: 16px;
+      }
+      input[type='range']:disabled {
+        cursor: default;
+        opacity: 0.4;
       }
 
       .tabs {
@@ -1330,7 +1382,8 @@ export class GammaSonosPlayerCard extends LitElement {
         cursor: default;
         opacity: 0.45;
       }
-    `;
+    `,
+    ];
   }
 
   public static getStubConfig(_: unknown, entities: string[]) {
@@ -3679,7 +3732,12 @@ export class GammaSonosPlayerCard extends LitElement {
                         min="0"
                         max="100"
                         .value=${String(volume)}
+                        style=${`--_fill: ${volumeFillPercent(volume)}%`}
                         ?disabled=${unavailable}
+                        @input=${(event: Event) => {
+                          const target = event.target as HTMLInputElement;
+                          target.style.setProperty('--_fill', `${volumeFillPercent(target.value)}%`);
+                        }}
                         @change=${(event: Event) =>
                           this.setPlayerVolume(
                             player.entity_id,
@@ -3872,7 +3930,12 @@ export class GammaSonosPlayerCard extends LitElement {
               min="0"
               max="100"
               .value=${String(this.volume)}
+              style=${`--_fill: ${volumeFillPercent(this.volume)}%`}
               ?disabled=${unavailable}
+              @input=${(event: Event) => {
+                const target = event.target as HTMLInputElement;
+                target.style.setProperty('--_fill', `${volumeFillPercent(target.value)}%`);
+              }}
               @change=${(event: Event) => this.setVolume((event.target as HTMLInputElement).value)}
             />
             <span class="state">${this.volume}%</span>
