@@ -1,0 +1,172 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>gamma-sonos-player preview</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 24px;
+    background: var(--page-bg) center / cover fixed;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  body.dark {
+    --page-bg: linear-gradient(135deg, #1a2233, #0c0f16);
+    --primary-text-color: #e8ecf4;
+    --secondary-text-color: #9aa4b5;
+    --card-background-color: #1c2230;
+    --ha-card-background: #1c2230;
+    --divider-color: rgb(255 255 255 / 12%);
+    --ha-card-border-radius: 16px;
+  }
+  body.light {
+    --page-bg: linear-gradient(135deg, #e8edf5, #cdd6e4);
+    --primary-text-color: #1b2330;
+    --secondary-text-color: #55607a;
+    --card-background-color: #f4f6fb;
+    --ha-card-background: #f4f6fb;
+    --divider-color: rgb(0 0 0 / 12%);
+    --ha-card-border-radius: 16px;
+  }
+  .slot { width: 420px; }
+</style>
+<body class="dark">
+  <div class="slot" id="slot"></div>
+
+  <script type="module">
+    import './bundle.js';
+
+    // --- minimal HA element stubs (the bundle doesn't ship ha-card/ha-icon) ---
+    if (!customElements.get('ha-card')) {
+      customElements.define(
+        'ha-card',
+        class extends HTMLElement {
+          connectedCallback() {
+            this.style.display = 'block';
+          }
+        },
+      );
+    }
+    if (!customElements.get('ha-icon')) {
+      customElements.define(
+        'ha-icon',
+        class extends HTMLElement {
+          static get observedAttributes() {
+            return ['icon'];
+          }
+          connectedCallback() {
+            this.render();
+          }
+          attributeChangedCallback() {
+            this.render();
+          }
+          render() {
+            const icon = this.getAttribute('icon') || '';
+            this.textContent = icon.includes('skip-previous')
+              ? '⏮'
+              : icon.includes('skip-next')
+                ? '⏭'
+                : icon.includes('pause')
+                  ? '⏸'
+                  : icon.includes('play')
+                    ? '▶'
+                    : icon.includes('volume-off')
+                      ? '🔇'
+                      : icon.includes('volume')
+                        ? '🔊'
+                        : icon.includes('shuffle')
+                          ? '⤨'
+                          : icon.includes('repeat')
+                            ? '↻'
+                            : icon.includes('magnify')
+                              ? '⌕'
+                              : icon.includes('chevron-up')
+                                ? '⌃'
+                                : icon.includes('chevron-down')
+                                  ? '⌄'
+                                  : icon.includes('spotify')
+                                    ? '♬'
+                                    : '●';
+          }
+        },
+      );
+    }
+
+    // --- entity factory ---
+    const artwork =
+      'data:image/svg+xml;base64,' +
+      btoa(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">' +
+          '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+          '<stop offset="0" stop-color="#1c2b3a"/><stop offset="1" stop-color="#39d98a"/>' +
+          '</linearGradient></defs>' +
+          '<rect width="300" height="300" fill="url(#g)"/></svg>',
+      );
+
+    const states = {
+      'media_player.living_room': {
+        entity_id: 'media_player.living_room',
+        state: 'playing',
+        attributes: {
+          friendly_name: 'Living Room',
+          platform: 'sonos',
+          media_title: 'Sweet Disposition',
+          media_artist: 'The Temper Trap',
+          media_album_name: 'Conditions',
+          media_content_type: 'music',
+          media_duration: 210,
+          media_position: 64,
+          media_position_updated_at: new Date().toISOString(),
+          entity_picture: artwork,
+          volume_level: 0.4,
+          is_volume_muted: false,
+          source: 'Spotify',
+          source_list: ['Spotify', 'Line In'],
+          supported_features: 0,
+        },
+      },
+    };
+
+    const hass = {
+      language: 'en',
+      themes: { darkMode: document.body.classList.contains('dark') },
+      states,
+      callService: (...args) => {
+        console.log('callService', ...args);
+        return Promise.resolve();
+      },
+      formatEntityState: (s) => String(s?.state ?? ''),
+      localize: (key) => key,
+    };
+
+    // Create + configure off-DOM, then insert — matches real HA card lifecycle
+    // (setConfig/hass always happen before the element is connected), avoiding a
+    // race where the statically-declared tag auto-upgrades and renders before
+    // setConfig/hass land.
+    let card;
+    customElements.whenDefined('gamma-sonos-player-card').then(() => {
+      try {
+        card = document.createElement('gamma-sonos-player-card');
+        card.setConfig({
+          entities: ['media_player.living_room'],
+          entity: 'media_player.living_room',
+          name: 'Living Room',
+        });
+        card.hass = hass;
+        document.getElementById('slot').appendChild(card);
+      } catch (e) {
+        console.error('gamma-sonos-player-card', e);
+      }
+    });
+
+    window.__setTheme = (mode) => {
+      document.body.className = mode;
+      hass.themes.darkMode = mode === 'dark';
+      if (card) card.hass = { ...hass };
+    };
+  </script>
+</body>

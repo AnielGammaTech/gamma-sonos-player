@@ -8,7 +8,8 @@
     "build": "vite build && node scripts/copy-dist.mjs",
     "demo": "vite --host 0.0.0.0",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "npm run build"
+    "test": "npm run test:unit && npm run build",
+    "test:unit": "vitest run"
   },
   "keywords": [
     "home-assistant",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "typescript": "^5.9.3",
-    "vite": "^6.4.2"
+    "vite": "^6.4.2",
+    "vitest": "^4.1.10"
   }
 }
