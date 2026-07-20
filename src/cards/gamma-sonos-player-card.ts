@@ -3471,11 +3471,6 @@ export class GammaSonosPlayerCard extends LitElement {
     return String(item.album?.name ?? '');
   }
 
-  private shouldStartRadioForContext(item: SearchItem, context: ResultContext): boolean {
-    const mediaType = item.media_type || item.type || 'track';
-    return mediaType === 'track' && context !== 'album' && context !== 'playlist' && Boolean(this.itemArtist(item));
-  }
-
   private refreshQueueAfterPlayback(): void {
     window.clearTimeout(this.queueRefreshTimer);
     window.clearTimeout(this.queueRefreshRetryTimer);
@@ -3491,7 +3486,6 @@ export class GammaSonosPlayerCard extends LitElement {
   private playSearchResult(
     item: SearchItem,
     enqueueOverride?: EnqueueMode,
-    options: { startRadio?: boolean } = {},
   ): void {
     if (this.playbackPending) {
       return;
@@ -3532,29 +3526,10 @@ export class GammaSonosPlayerCard extends LitElement {
       serviceData.album = album;
     }
 
-    if (options.startRadio && enqueue === 'play' && mediaType === 'track' && artist) {
-      serviceData.radio_mode = true;
-    }
-
     void this.service('music_assistant', 'play_media', serviceData, {
       entity_id: targetEntityId,
     })
       .catch(async (error: unknown) => {
-        if (serviceData.radio_mode) {
-          const fallbackData = { ...serviceData };
-          delete fallbackData.radio_mode;
-
-          try {
-            await this.service('music_assistant', 'play_media', fallbackData, {
-              entity_id: targetEntityId,
-            });
-            return;
-          } catch (fallbackError) {
-            this.playbackError = this.errorMessage(fallbackError, 'Music Assistant playback failed.');
-            return;
-          }
-        }
-
         if (enqueue === 'next') {
           try {
             await this.service('music_assistant', 'play_media', {
@@ -3579,7 +3554,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private queueSearchResult(item: SearchItem): void {
-    this.playSearchResult(item, 'add', { startRadio: false });
+    this.playSearchResult(item, 'add');
   }
 
   private playQueueItem(item: SearchItem): void {
@@ -4480,9 +4455,7 @@ export class GammaSonosPlayerCard extends LitElement {
       '';
     const image = item.image || item.thumb || item.album?.image || '';
     const favorite = this.isFavorite(item);
-    const playNow = () => this.playSearchResult(item, 'play', {
-      startRadio: this.shouldStartRadioForContext(item, context),
-    });
+    const playNow = () => this.playSearchResult(item, 'play');
     const openItem = action === 'artist'
       ? () => this.openArtist(item)
       : action === 'album'
