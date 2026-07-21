@@ -86,6 +86,11 @@ type SearchItem = {
   queue_item_id?: string;
 };
 
+type PlaybackRequest = {
+  item: SearchItem;
+  enqueue?: EnqueueMode;
+};
+
 type BrowseMediaNode = {
   title?: string;
   name?: string;
@@ -153,6 +158,7 @@ const WEBSOCKET_TIMEOUT_MS = 12_000;
 const SEARCH_CACHE_TTL_MS = 2 * 60_000;
 const BROWSE_CACHE_TTL_MS = 5 * 60_000;
 const MAX_CACHE_ENTRIES = 30;
+const PLAYBACK_SLOW_MS = 15_000;
 
 type CachedItems = {
   expiresAt: number;
@@ -209,6 +215,18 @@ function titleCase(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function normalizedSpeakerName(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^media_player\./, '')
+    .replace(/_/g, ' ')
+    .replace(/\b(ma|mass)\b/g, '')
+    .replace(/\b(sonos|music assistant|speaker|player)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function fireConfigChanged(
   element: HTMLElement,
   config: Partial<GammaSonosPlayerConfig>,
@@ -232,6 +250,9 @@ export class GammaSonosPlayerCard extends LitElement {
     searching: { state: true },
     searchError: { state: true },
     playbackError: { state: true },
+    playbackStatus: { state: true },
+    playbackSlow: { state: true },
+    optimisticPlaybackItem: { state: true },
     searchResults: { state: true },
     selectedGroupIds: { state: true },
     pendingGroupIds: { state: true },
@@ -256,6 +277,7 @@ export class GammaSonosPlayerCard extends LitElement {
     playbackMemory: { state: true },
     transportPending: { state: true },
     favoriteItems: { state: true },
+    transferTargetEntityId: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -267,6 +289,9 @@ export class GammaSonosPlayerCard extends LitElement {
   private searching = false;
   private searchError = '';
   private playbackError = '';
+  private playbackStatus = '';
+  private playbackSlow = false;
+  private optimisticPlaybackItem?: SearchItem;
   private searchResults: SearchItem[] = [];
   private selectedGroupIds: string[] = [];
   private pendingGroupIds: string[] = [];
@@ -291,6 +316,10 @@ export class GammaSonosPlayerCard extends LitElement {
   private playbackMemory: Record<string, PlaybackMemory> = {};
   private transportPending = false;
   private favoriteItems: SearchItem[] = [];
+  private transferTargetEntityId = '';
+  private initialTabResolved = false;
+  private lastPlaybackRequest?: PlaybackRequest;
+  private playbackFeedbackTimer?: number;
   private searchRequestId = 0;
   private albumRequestId = 0;
   private playlistRequestId = 0;
@@ -749,7 +778,7 @@ export class GammaSonosPlayerCard extends LitElement {
         align-items: start;
         display: grid;
         gap: 8px 12px;
-        grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
+        grid-template-columns: minmax(0, 1fr) auto;
         justify-content: initial;
       }
 
@@ -865,45 +894,83 @@ export class GammaSonosPlayerCard extends LitElement {
         padding: 0 8px;
       }
 
-      .player-picker {
-        align-items: center;
-        background: rgb(255 255 255 / 6%);
-        border: 1px solid rgb(255 255 255 / 9%);
-        border-radius: 999px;
-        display: inline-flex;
-        gap: 6px;
-        justify-self: end;
+      .room-picker {
+        display: flex;
+        gap: 7px;
         min-width: 0;
-        padding: 4px 8px;
+        overflow-x: auto;
+        padding: 2px 1px 5px;
+        scrollbar-width: none;
+      }
+
+      .room-picker::-webkit-scrollbar {
+        display: none;
       }
 
       .header-picker {
-        border-color: rgb(255 255 255 / 11%);
-        justify-self: start;
-        max-width: 100%;
-        min-height: 32px;
-        padding: 5px 9px;
+        width: 100%;
       }
 
-      .player-picker select {
+      .room-option {
+        align-items: center;
         appearance: none;
-        background: transparent;
-        border: 0;
+        background: rgb(255 255 255 / 5%);
+        border: 1px solid rgb(255 255 255 / 9%);
+        border-radius: 13px;
         color: var(--primary-text-color, #f4f7fb);
+        cursor: pointer;
+        display: inline-grid;
+        flex: 0 0 auto;
         font: inherit;
-        font-size: 12px;
-        font-weight: 750;
-        max-width: 150px;
+        gap: 7px;
+        grid-template-columns: 9px minmax(0, 1fr);
+        min-height: 44px;
+        min-width: 112px;
+        padding: 6px 10px;
+        text-align: left;
+      }
+
+      .room-option.active {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 17%, rgb(255 255 255 / 5%));
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 42%, transparent);
+      }
+
+      .room-status-dot {
+        background: #79dc9c;
+        border-radius: 999px;
+        box-shadow: 0 0 8px rgb(121 220 156 / 48%);
+        height: 8px;
+        width: 8px;
+      }
+
+      .room-option.active .room-status-dot {
+        background: var(--gamma-sonos-accent);
+      }
+
+      .room-option.offline .room-status-dot {
+        background: #7f8793;
+        box-shadow: none;
+      }
+
+      .room-option-copy {
+        display: grid;
+        gap: 1px;
         min-width: 0;
-        outline: 0;
+      }
+
+      .room-option-name {
+        font-size: 12px;
+        font-weight: 800;
         overflow: hidden;
         text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
-      .header-picker select {
-        font-size: 17px;
-        font-weight: 800;
-        max-width: 170px;
+      .room-option-status {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 9px;
+        font-weight: 750;
+        text-transform: uppercase;
       }
 
       .room.active,
@@ -1040,6 +1107,78 @@ export class GammaSonosPlayerCard extends LitElement {
       .queue {
         display: grid;
         gap: 8px;
+      }
+
+      .tab-content {
+        max-height: min(58vh, 590px);
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding-right: 2px;
+        scrollbar-width: thin;
+      }
+
+      .playback-feedback {
+        align-items: center;
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 12%, rgb(255 255 255 / 5%));
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 26%, transparent);
+        border-radius: 12px;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        min-height: 42px;
+        padding: 7px 10px;
+      }
+
+      .playback-feedback.failed {
+        background: rgb(255 116 104 / 9%);
+        border-color: rgb(255 143 133 / 28%);
+      }
+
+      .playback-feedback > ha-icon {
+        --mdc-icon-size: 19px;
+      }
+
+      .playback-feedback:not(.failed):not(.slow) > ha-icon {
+        animation: gamma-sonos-spin 900ms linear infinite;
+      }
+
+      .playback-feedback > span:not(.feedback-actions) {
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+
+      .feedback-actions {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        justify-content: end;
+      }
+
+      .transfer-panel {
+        display: grid;
+        gap: 7px;
+      }
+
+      .transfer-row {
+        align-items: center;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .transfer-row select {
+        appearance: none;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 11px;
+        color: var(--primary-text-color, #f4f7fb);
+        font: inherit;
+        font-size: 12px;
+        min-height: 38px;
+        min-width: 0;
+        padding: 0 10px;
       }
 
       .section-title {
@@ -1659,13 +1798,8 @@ export class GammaSonosPlayerCard extends LitElement {
           gap: 6px;
         }
 
-        .player-picker {
-          gap: 4px;
-          padding: 4px 6px;
-        }
-
-        .player-picker select {
-          max-width: 88px;
+        .room-option {
+          min-width: 100px;
         }
 
         .tabs button {
@@ -1767,6 +1901,21 @@ export class GammaSonosPlayerCard extends LitElement {
     this.scheduleInitialQueueRefresh();
     this.scheduleQueueRefreshForPlayback();
     this.syncProgressTimer();
+
+    if (!this.initialTabResolved) {
+      this.initialTabResolved = true;
+      if (!this.isPlaying && this.config.show_search) {
+        this.activeTab = 'search';
+        window.setTimeout(() => {
+          this.shadowRoot?.querySelector<HTMLInputElement>("input[type='search']")?.focus();
+        }, 0);
+      }
+    }
+
+    if (this.isPlaying && (this.playbackStatus || this.playbackSlow)) {
+      this.clearPlaybackFeedback();
+      this.optimisticPlaybackItem = undefined;
+    }
   }
 
   public disconnectedCallback(): void {
@@ -1775,6 +1924,7 @@ export class GammaSonosPlayerCard extends LitElement {
     window.clearTimeout(this.queueRefreshTimer);
     window.clearTimeout(this.queueRefreshRetryTimer);
     window.clearTimeout(this.initialQueueRefreshTimer);
+    window.clearTimeout(this.playbackFeedbackTimer);
     window.clearInterval(this.progressTimer);
     window.cancelAnimationFrame(this.volumeRenderFrame ?? 0);
     this.progressTimer = undefined;
@@ -1855,15 +2005,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private normalizedRoomName(value: string): string {
-    return value
-      .trim()
-      .toLowerCase()
-      .replace(/^media_player\./, '')
-      .replace(/_/g, ' ')
-      .replace(/\b(ma|mass)\b/g, '')
-      .replace(/\b(sonos|music assistant|speaker|player)\b/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    return normalizedSpeakerName(value);
   }
 
   private preferredRoomPlayer(current: HassEntity, candidate: HassEntity): HassEntity {
@@ -1914,9 +2056,12 @@ export class GammaSonosPlayerCard extends LitElement {
     let players: HassEntity[];
 
     if (configured.length > 0) {
-      players = this.dedupePlayers(configured
+      const configuredPlayers = configured
         .map((entityId) => this.hass?.states[entityId])
-        .filter((entity): entity is HassEntity => Boolean(entity)));
+        .filter((entity): entity is HassEntity => Boolean(entity));
+      players = this.dedupePlayers(configuredPlayers.map((player) => (
+        this.matchingMusicAssistantPlayer(player) ?? player
+      )));
     } else {
       players = this.dedupeRoomPlayers(this.cachedMediaPlayers.filter((entity) => this.isDiscoverablePlayer(entity)));
     }
@@ -1931,11 +2076,11 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get currentlyPlayingPlayers(): HassEntity[] {
-    return this.allPlayers.filter((player) => player.state === 'playing');
+    return this.dedupeRoomPlayers(this.allPlayers.filter((player) => player.state === 'playing'));
   }
 
   private get activePlayer(): HassEntity | undefined {
-    const selected = this.hass?.states[this.selectedEntityId];
+    const selected = this.allPlayers.find((player) => player.entity_id === this.selectedEntityId);
 
     return selected ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
   }
@@ -1970,6 +2115,9 @@ export class GammaSonosPlayerCard extends LitElement {
       this.playbackPlayer?.attributes.entity_picture ||
         this.playbackPlayer?.attributes.entity_picture_local ||
         this.playbackPlayer?.attributes.media_image_url ||
+        this.optimisticPlaybackItem?.image ||
+        this.optimisticPlaybackItem?.thumb ||
+        this.optimisticPlaybackItem?.album?.image ||
         this.activeMemory?.artwork ||
         '',
     );
@@ -2280,21 +2428,68 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private get groupMembers(): string[] {
     const members = this.activePlayer?.attributes.group_members;
-    return Array.isArray(members) ? members : [this.activeEntityId].filter(Boolean);
+    if (Array.isArray(members) && members.length > 0) {
+      return members;
+    }
+
+    const nativeSonos = this.nativeSonosMatch(this.activePlayer);
+    const nativeMembers = nativeSonos?.attributes.group_members;
+    if (Array.isArray(nativeMembers) && nativeMembers.length > 1) {
+      const musicAssistantMembers = nativeMembers
+        .map((entityId) => this.hass?.states[entityId])
+        .map((nativePlayer) => {
+          const roomName = normalizedSpeakerName(String(
+            nativePlayer?.attributes.friendly_name ?? nativePlayer?.entity_id ?? '',
+          ));
+          return this.allPlayers.find((player) => (
+            normalizedSpeakerName(String(player.attributes.friendly_name ?? player.entity_id)) === roomName
+          ))?.entity_id;
+        })
+        .filter((entityId): entityId is string => Boolean(entityId));
+
+      if (musicAssistantMembers.length > 1) {
+        return musicAssistantMembers;
+      }
+    }
+
+    if (this.selectedGroupIds.includes(this.activeEntityId) && this.selectedGroupIds.length > 1) {
+      return this.selectedGroupIds;
+    }
+
+    return [this.activeEntityId].filter(Boolean);
+  }
+
+  private nativeSonosMatch(entity?: HassEntity): HassEntity | undefined {
+    if (!entity) {
+      return undefined;
+    }
+
+    if (isNativeSonosPlayer(entity)) {
+      return entity;
+    }
+
+    const roomName = this.normalizedRoomName(String(entity.attributes.friendly_name ?? entity.entity_id));
+    return this.mediaPlayers.find((player) => (
+      isNativeSonosPlayer(player) &&
+      this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id)) === roomName
+    ));
+  }
+
+  private isSonosBackedPlayer(entity?: HassEntity): boolean {
+    return Boolean(this.nativeSonosMatch(entity));
   }
 
   private get groupablePlayers(): HassEntity[] {
     const activePlayer = this.activePlayer;
-    const activeIsMusicAssistant = isMusicAssistantPlayer(activePlayer);
-    const activeIsNativeSonos = isNativeSonosPlayer(activePlayer);
+    const activeIsSonos = this.isSonosBackedPlayer(activePlayer);
     const seen = new Set<string>();
 
-    return this.allPlayers.filter((player) => {
-      if (isUnavailable(player)) {
-        return false;
-      }
+    if (!activeIsSonos) {
+      return [];
+    }
 
-      if (isNativeSonosPlayer(player) !== activeIsNativeSonos) {
+    return this.allPlayers.filter((player) => {
+      if (isUnavailable(player) || !this.isSonosBackedPlayer(player)) {
         return false;
       }
 
@@ -2303,9 +2498,7 @@ export class GammaSonosPlayerCard extends LitElement {
         supportsGrouping(player) ||
         isMusicAssistantPlayer(player) ||
         Boolean(musicAssistantMatch);
-      const playerKey = activeIsMusicAssistant && musicAssistantMatch
-        ? musicAssistantMatch.entity_id
-        : player.entity_id;
+      const playerKey = musicAssistantMatch?.entity_id ?? player.entity_id;
 
       if (!canGroup || seen.has(playerKey)) {
         return false;
@@ -2360,10 +2553,9 @@ export class GammaSonosPlayerCard extends LitElement {
     selectedPlayers: HassEntity[],
   ): { anchor: HassEntity; members: HassEntity[]; error?: string } {
     const requestedPlayers = [anchor, ...selectedPlayers];
-    const hasNativeSonos = requestedPlayers.some((player) => isNativeSonosPlayer(player));
-    const hasNonSonos = requestedPlayers.some((player) => !isNativeSonosPlayer(player));
+    const allSonosBacked = requestedPlayers.every((player) => this.isSonosBackedPlayer(player));
 
-    if (hasNativeSonos && hasNonSonos) {
+    if (!allSonosBacked) {
       return {
         anchor,
         members: [],
@@ -2689,22 +2881,18 @@ export class GammaSonosPlayerCard extends LitElement {
     this.groupError = '';
     this.playbackError = '';
 
-    const targetPlayers = this.pendingGroupIds
-      .map((id) => this.hass?.states[id])
-      .filter((player): player is HassEntity => {
-        if (!player) {
-          return false;
-        }
+    const targetPlayer = this.hass?.states[this.transferTargetEntityId];
 
-        return player.entity_id !== this.playbackEntityId && player.entity_id !== this.activeEntityId;
-      });
-
-    if (targetPlayers.length !== 1) {
-      this.groupError = 'Select exactly one room to transfer playback.';
+    if (
+      !targetPlayer ||
+      isUnavailable(targetPlayer) ||
+      targetPlayer.entity_id === this.playbackEntityId ||
+      targetPlayer.entity_id === this.activeEntityId
+    ) {
+      this.groupError = 'Choose one available speaker to move the music to.';
       return;
     }
 
-    const targetPlayer = targetPlayers[0];
     const visibleTargetEntityId = targetPlayer.entity_id;
     const sourcePlayer = this.playbackPlayer;
     const sourceEntityId =
@@ -2719,6 +2907,7 @@ export class GammaSonosPlayerCard extends LitElement {
     const applySuccess = () => {
       this.selectedEntityId = visibleTargetEntityId;
       this.pendingGroupIds = [];
+      this.transferTargetEntityId = '';
       this.queueItems = [];
       this.queueError = '';
       this.lastInitialQueueEntityId = '';
@@ -3219,12 +3408,12 @@ export class GammaSonosPlayerCard extends LitElement {
     return target && !isUnavailable(target) ? target.entity_id : '';
   }
 
-  private queueServiceAttempts(entityId: string): QueueServiceAttempt[] {
+  private queueServiceAttempts(_entityId: string): QueueServiceAttempt[] {
     return [
       {
         domain: 'music_assistant',
         service: 'get_queue',
-        data: { entity_id: entityId },
+        data: {},
       },
     ];
   }
@@ -3259,6 +3448,7 @@ export class GammaSonosPlayerCard extends LitElement {
               domain: attempt.domain,
               service: attempt.service,
               service_data: attempt.data,
+              target: { entity_id: entityId },
               return_response: true,
             }),
             WEBSOCKET_TIMEOUT_MS,
@@ -3293,7 +3483,7 @@ export class GammaSonosPlayerCard extends LitElement {
       this.queueError = gotQueueResponse
         ? ''
         : errors.length > 0
-        ? errors[errors.length - 1]
+        ? 'Could not load this speaker’s queue. Retry in a moment.'
         : 'Queue is empty or unavailable for this Music Assistant player.';
     } finally {
       if (requestId === this.queueRequestId) {
@@ -3539,6 +3729,39 @@ export class GammaSonosPlayerCard extends LitElement {
     }, 1800);
   }
 
+  private clearPlaybackFeedback(): void {
+    window.clearTimeout(this.playbackFeedbackTimer);
+    this.playbackFeedbackTimer = undefined;
+    this.playbackStatus = '';
+    this.playbackSlow = false;
+  }
+
+  private startPlaybackFeedback(item: SearchItem, targetName: string): void {
+    this.optimisticPlaybackItem = item;
+    this.playbackSlow = false;
+    this.playbackStatus = `Starting on ${targetName}…`;
+    window.clearTimeout(this.playbackFeedbackTimer);
+    this.playbackFeedbackTimer = window.setTimeout(() => {
+      if (this.isPlaying) {
+        this.clearPlaybackFeedback();
+        return;
+      }
+
+      this.playbackSlow = true;
+      this.playbackStatus = `${targetName} is taking longer than expected to connect.`;
+    }, PLAYBACK_SLOW_MS);
+  }
+
+  private retryLastPlayback(): void {
+    const request = this.lastPlaybackRequest;
+
+    if (!request || this.playbackPending) {
+      return;
+    }
+
+    this.playSearchResult(request.item, request.enqueue);
+  }
+
   private playSearchResult(
     item: SearchItem,
     enqueueOverride?: EnqueueMode,
@@ -3570,6 +3793,15 @@ export class GammaSonosPlayerCard extends LitElement {
 
     this.playbackPending = true;
     this.writeStorage(LAST_PLAYER_STORAGE_KEY, visibleEntityId);
+    this.lastPlaybackRequest = { item, enqueue: enqueueOverride };
+    const targetName = String(targetPlayer.attributes.friendly_name ?? this.activeName ?? 'speaker');
+    const startsPlayback = enqueue !== 'next' && enqueue !== 'add';
+    if (startsPlayback) {
+      this.startPlaybackFeedback(item, targetName);
+    } else {
+      this.clearPlaybackFeedback();
+      this.playbackStatus = `Adding ${item.name ?? 'item'} to the queue…`;
+    }
     const mediaType = item.media_type || item.type || 'track';
     const serviceData: Record<string, unknown> = {
       media_id: mediaId,
@@ -3587,10 +3819,15 @@ export class GammaSonosPlayerCard extends LitElement {
       serviceData.album = album;
     }
 
-    void this.service('music_assistant', 'play_media', serviceData, {
-      entity_id: targetEntityId,
-    })
-      .catch(async (error: unknown) => {
+    void (async () => {
+      let succeeded = false;
+
+      try {
+        await this.service('music_assistant', 'play_media', serviceData, {
+          entity_id: targetEntityId,
+        });
+        succeeded = true;
+      } catch (error) {
         if (enqueue === 'next') {
           try {
             await this.service('music_assistant', 'play_media', {
@@ -3600,13 +3837,11 @@ export class GammaSonosPlayerCard extends LitElement {
             }, {
               entity_id: targetEntityId,
             });
+            succeeded = true;
           } catch (fallbackError) {
             this.playbackError = this.errorMessage(fallbackError, 'Music Assistant queue add failed.');
           }
-          return;
-        }
-
-        if (item.uri && item.name) {
+        } else if (item.uri && item.name) {
           const fallbackData: Record<string, unknown> = {
             media_id: item.name,
             media_type: mediaType,
@@ -3625,19 +3860,29 @@ export class GammaSonosPlayerCard extends LitElement {
             await this.service('music_assistant', 'play_media', fallbackData, {
               entity_id: targetEntityId,
             });
-            return;
+            succeeded = true;
           } catch (fallbackError) {
             this.playbackError = `Could not play ${item.name} on ${targetPlayer.attributes.friendly_name ?? targetEntityId}: ${this.errorMessage(fallbackError, 'no playable result was found')}`;
-            return;
           }
+        } else {
+          this.playbackError = `Could not play this item on ${targetPlayer.attributes.friendly_name ?? targetEntityId}: ${this.errorMessage(error, 'Music Assistant playback failed.')}`;
         }
-
-        this.playbackError = `Could not play this item on ${targetPlayer.attributes.friendly_name ?? targetEntityId}: ${this.errorMessage(error, 'Music Assistant playback failed.')}`;
-      })
-      .finally(() => {
+      } finally {
         this.playbackPending = false;
+        if (succeeded) {
+          if (startsPlayback && !this.isPlaying) {
+            this.playbackStatus = `Connecting to ${targetName}…`;
+          } else if (!startsPlayback) {
+            this.clearPlaybackFeedback();
+            this.optimisticPlaybackItem = undefined;
+          }
+        } else {
+          this.clearPlaybackFeedback();
+          this.optimisticPlaybackItem = undefined;
+        }
         this.refreshQueueAfterPlayback();
-      });
+      }
+    })();
   }
 
   private queueSearchResult(item: SearchItem): void {
@@ -3716,46 +3961,72 @@ export class GammaSonosPlayerCard extends LitElement {
     return `${baseLabel} (${player.entity_id.split('.')[1]})`;
   }
 
+  private playerQuickStatus(player: HassEntity): string {
+    if (isUnavailable(player)) {
+      return 'Offline';
+    }
+
+    if (player.state === 'playing') {
+      return 'Playing';
+    }
+
+    if (player.state === 'paused') {
+      return 'Paused';
+    }
+
+    if (player.state === 'buffering') {
+      return 'Connecting';
+    }
+
+    return 'Ready';
+  }
+
+  private selectPlayer(entityId: string): void {
+    const player = this.hass?.states[entityId];
+    this.selectedEntityId = entityId;
+    this.writeStorage(LAST_PLAYER_STORAGE_KEY, entityId);
+    const members = player?.attributes.group_members;
+    this.selectedGroupIds = Array.isArray(members) ? [...members] : [entityId];
+    this.pendingGroupIds = [];
+    this.transferTargetEntityId = '';
+    this.queueItems = [];
+    this.queueError = '';
+    this.queueLoading = false;
+    this.queueRequestId += 1;
+    this.lastQueueSignature = '';
+    this.lastInitialQueueEntityId = '';
+    window.clearTimeout(this.queueRefreshTimer);
+    window.clearTimeout(this.queueRefreshRetryTimer);
+    window.clearTimeout(this.initialQueueRefreshTimer);
+    if (this.activeTab === 'queue') {
+      void this.refreshQueue();
+    }
+  }
+
   private renderPlayerPicker(players: HassEntity[], header = false): TemplateResult {
     return html`
-      <label class="player-picker ${header ? 'header-picker' : ''}">
-        <ha-icon .icon=${'mdi:speaker'}></ha-icon>
-        <select
-          .value=${this.activeEntityId}
-          @change=${(event: Event) => {
-            const entityId = (event.target as HTMLSelectElement).value;
-            const player = this.hass?.states[entityId];
-            this.selectedEntityId = entityId;
-            this.writeStorage(LAST_PLAYER_STORAGE_KEY, entityId);
-            const members = player?.attributes.group_members;
-            this.selectedGroupIds = Array.isArray(members) ? [...members] : [entityId];
-            this.pendingGroupIds = [];
-            this.queueItems = [];
-            this.queueError = '';
-            this.queueLoading = false;
-            this.queueRequestId += 1;
-            this.lastQueueSignature = '';
-            this.lastInitialQueueEntityId = '';
-            window.clearTimeout(this.queueRefreshTimer);
-            window.clearTimeout(this.queueRefreshRetryTimer);
-            window.clearTimeout(this.initialQueueRefreshTimer);
-            if (this.activeTab === 'queue') {
-              void this.refreshQueue();
-            }
-          }}
-        >
-          ${players.map(
-            (player) => html`
-              <option
-                .value=${player.entity_id}
-                ?selected=${player.entity_id === this.activeEntityId}
-              >
-                ${this.playerPickerLabel(player, players)}
-              </option>
-            `,
-          )}
-        </select>
-      </label>
+      <div class="room-picker ${header ? 'header-picker' : ''}" role="tablist" aria-label="Music Assistant speakers">
+        ${players.map((player) => {
+          const active = player.entity_id === this.activeEntityId;
+          const status = this.playerQuickStatus(player);
+
+          return html`
+            <button
+              class="room-option ${active ? 'active' : ''} ${isUnavailable(player) ? 'offline' : ''}"
+              role="tab"
+              aria-selected=${String(active)}
+              title=${`${this.playerPickerLabel(player, players)} — ${status}`}
+              @click=${() => this.selectPlayer(player.entity_id)}
+            >
+              <span class="room-status-dot" aria-hidden="true"></span>
+              <span class="room-option-copy">
+                <span class="room-option-name">${this.playerPickerLabel(player, players)}</span>
+                <span class="room-option-status">${status}</span>
+              </span>
+            </button>
+          `;
+        })}
+      </div>
     `;
   }
 
@@ -3818,6 +4089,73 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
+  private renderPlaybackFeedback(): TemplateResult | typeof nothing {
+    if (!this.playbackStatus && !this.playbackError) {
+      return nothing;
+    }
+
+    const message = this.playbackError || this.playbackStatus;
+
+    return html`
+      <div class="playback-feedback ${this.playbackError ? 'failed' : ''} ${this.playbackSlow ? 'slow' : ''}" role=${this.playbackError ? 'alert' : 'status'}>
+        <ha-icon .icon=${this.playbackError ? 'mdi:alert-circle-outline' : this.playbackSlow ? 'mdi:clock-outline' : 'mdi:loading'}></ha-icon>
+        <span>${message}</span>
+        <span class="feedback-actions">
+          ${(this.playbackSlow || this.playbackError) && this.lastPlaybackRequest
+            ? html`<button class="small-action" @click=${this.retryLastPlayback}>Retry</button>`
+            : nothing}
+          ${this.playbackError
+            ? html`<button class="small-action" @click=${() => {
+                this.activeTab = 'speakers';
+              }}>Choose speaker</button>`
+            : nothing}
+        </span>
+      </div>
+    `;
+  }
+
+  private renderTransferPlayback(): TemplateResult | typeof nothing {
+    const targets = this.allPlayers.filter((player) => (
+      player.entity_id !== this.activeEntityId &&
+      player.entity_id !== this.playbackEntityId &&
+      !isUnavailable(player) &&
+      Boolean(this.matchingMusicAssistantPlayer(player))
+    ));
+
+    if (targets.length === 0) {
+      return nothing;
+    }
+
+    return html`
+      <section class="transfer-panel">
+        <span class="section-title">Move Music</span>
+        <div class="transfer-row">
+          <select
+            aria-label="Move music to speaker"
+            .value=${this.transferTargetEntityId}
+            @change=${(event: Event) => {
+              this.transferTargetEntityId = (event.target as HTMLSelectElement).value;
+            }}
+          >
+            <option value="">Choose a speaker</option>
+            ${targets.map((player) => html`
+              <option value=${player.entity_id}>
+                ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
+              </option>
+            `)}
+          </select>
+          <button
+            class="small-action primary"
+            ?disabled=${this.groupPending || !this.transferTargetEntityId}
+            @click=${this.continueInSelectedRoom}
+          >
+            Move
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
   private renderGrouping(): TemplateResult | typeof nothing {
     const groupablePlayers = this.groupablePlayers;
 
@@ -3835,21 +4173,12 @@ export class GammaSonosPlayerCard extends LitElement {
         groupablePlayers.some((groupable) => groupable.entity_id === player?.entity_id)
       );
     }).length;
-    const moveTargetCount = this.pendingGroupIds.filter((id) => {
-      const player = this.hass?.states[id];
-      return Boolean(
-        player &&
-        id !== this.activeEntityId &&
-        id !== this.playbackEntityId &&
-        groupablePlayers.some((groupable) => groupable.entity_id === player.entity_id),
-      );
-    }).length;
     const groupMemberCount = this.groupMembers.length;
     const hasActiveGroup = groupMemberCount > 1;
 
     return html`
       <section class="grouping">
-        <span class="section-title">Choose Speakers</span>
+        <span class="section-title">Group Sonos</span>
         ${this.groupError ? html`<div class="error">${this.groupError}</div>` : nothing}
         <div class="group-row">
           ${groupablePlayers.map((player) => {
@@ -3877,16 +4206,6 @@ export class GammaSonosPlayerCard extends LitElement {
           })}
         </div>
         <div class="group-actions">
-          <button
-            class="group-chip action continue"
-            ?disabled=${this.groupPending || moveTargetCount !== 1}
-            title="Transfer the current queue to one selected speaker"
-            @click=${this.continueInSelectedRoom}
-          >
-            <span class="group-check">▶</span>
-            <span class="group-name">Transfer Playback</span>
-            <span class="group-status">${moveTargetCount === 1 ? 'Move current queue' : 'Select 1 room'}</span>
-          </button>
           <button
             class="group-chip action group"
             ?disabled=${this.groupPending || !activeCanGroup || pendingCount === 0}
@@ -4137,7 +4456,7 @@ export class GammaSonosPlayerCard extends LitElement {
               <div class="queue-empty">
                 <ha-icon .icon=${this.queueError ? 'mdi:playlist-alert' : 'mdi:playlist-plus'}></ha-icon>
                 <strong>${this.queueError ? 'Queue unavailable' : 'Nothing queued yet'}</strong>
-                <span>${this.queueError ? this.queueError : 'Browse for music and use Next to line up a song.'}</span>
+                <span>${this.queueError ? this.queueError : 'Browse for music and choose Play next to line up a song.'}</span>
                 <div class="queue-empty-actions">
                   ${this.queueError
                     ? html`<button class="small-action" @click=${() => this.refreshQueue()}>Retry</button>`
@@ -4192,7 +4511,7 @@ export class GammaSonosPlayerCard extends LitElement {
               <div class="queue-empty">
                 <ha-icon .icon=${this.queueError ? 'mdi:playlist-alert' : 'mdi:playlist-plus'}></ha-icon>
                 <strong>${this.queueError ? 'Queue unavailable' : 'Your queue is open'}</strong>
-                <span>${this.queueError ? this.queueError : 'Find something in Browse and tap Next to add it here.'}</span>
+                <span>${this.queueError ? this.queueError : 'Find something in Browse and choose Play next to add it here.'}</span>
                 <div class="queue-empty-actions">
                   ${this.queueError
                     ? html`<button class="small-action" @click=${() => this.refreshQueue()}>Retry</button>`
@@ -4294,7 +4613,7 @@ export class GammaSonosPlayerCard extends LitElement {
             : this.renderResults()
           : nothing}
         ${this.config.show_queue_hint
-          ? html`<div class="hint">Tap a result to play it now, or use Next to add it to Up Next.</div>`
+          ? html`<div class="hint">Tap a song to play it, or choose Play next to add it to the queue.</div>`
           : nothing}
       </section>
     `;
@@ -4479,6 +4798,7 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <section class="speakers">
         ${this.renderCurrentGroup()}
+        ${this.renderTransferPlayback()}
         ${this.renderGrouping()}
         <button
           class="section-toggle"
@@ -4605,7 +4925,7 @@ export class GammaSonosPlayerCard extends LitElement {
                     playNow();
                   }}
                 >
-                  Now
+                  Play
                 </button>
                 <button
                   ?disabled=${this.playbackPending}
@@ -4614,7 +4934,7 @@ export class GammaSonosPlayerCard extends LitElement {
                     this.queueSearchResult(item);
                   }}
                 >
-                  Next
+                  Play next
                 </button>
               `}
         </span>
@@ -4664,13 +4984,15 @@ export class GammaSonosPlayerCard extends LitElement {
     const player = this.playbackPlayer;
     const controlPlayer = this.activePlayer;
     const memory = this.activeMemory;
+    const optimisticItem = this.optimisticPlaybackItem;
     const unavailable = isUnavailable(controlPlayer);
     const cover = this.artworkUrl ? `url("${this.artworkUrl}")` : 'none';
-    const title = player?.attributes.media_title || memory?.title || 'No music selected';
+    const title = player?.attributes.media_title || optimisticItem?.name || memory?.title || 'No music selected';
     const artist =
       player?.attributes.media_artist ||
       player?.attributes.media_album_name ||
       player?.attributes.source ||
+      (optimisticItem ? this.itemArtist(optimisticItem) : '') ||
       memory?.artist ||
       'Ready';
 
@@ -4714,17 +5036,17 @@ export class GammaSonosPlayerCard extends LitElement {
             />
             <span class="state">${this.volume}%</span>
           </div>
-          ${this.playbackError
-            ? html`<div class="error" role="alert">${this.playbackError}</div>`
-            : nothing}
+          ${this.renderPlaybackFeedback()}
           ${this.renderTabs()}
-          ${this.activeTab === 'now'
-            ? this.renderNowPlaying(title, artist, unavailable)
-            : this.activeTab === 'search'
-              ? this.renderSearch()
-              : this.activeTab === 'queue'
-                ? this.renderQueue()
-                : this.renderSpeakers()}
+          <div class="tab-content">
+            ${this.activeTab === 'now'
+              ? this.renderNowPlaying(title, artist, unavailable)
+              : this.activeTab === 'search'
+                ? this.renderSearch()
+                : this.activeTab === 'queue'
+                  ? this.renderQueue()
+                  : this.renderSpeakers()}
+          </div>
         </div>
       </ha-card>
     `;
@@ -4787,6 +5109,67 @@ class GammaSonosPlayerCardEditor extends LitElement {
         letter-spacing: 0;
         margin: 0;
       }
+
+      .setup-tools,
+      .setup-status {
+        display: grid;
+        gap: 8px;
+      }
+
+      .setup-button {
+        appearance: none;
+        background: var(--primary-color);
+        border: 0;
+        border-radius: 10px;
+        color: var(--text-primary-color, #ffffff);
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        min-height: 40px;
+        padding: 0 14px;
+      }
+
+      .setup-hint {
+        color: var(--secondary-text-color);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .setup-player {
+        align-items: center;
+        background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+        border-radius: 9px;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+        min-height: 34px;
+        padding: 0 10px;
+      }
+
+      .setup-player-name {
+        color: var(--primary-text-color);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .setup-badge {
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 4px 8px;
+        text-transform: uppercase;
+      }
+
+      .setup-badge.ready {
+        background: rgb(71 179 108 / 18%);
+        color: #73d997;
+      }
+
+      .setup-badge.offline,
+      .setup-badge.needs-ma {
+        background: rgb(224 102 102 / 16%);
+        color: #ffaaa4;
+      }
     `;
   }
 
@@ -4804,6 +5187,64 @@ class GammaSonosPlayerCardEditor extends LitElement {
     });
     this.config = next;
     fireConfigChanged(this, next);
+  }
+
+  private autoConfigureMusicAssistantPlayers(): void {
+    const states = Object.values(this.hass?.states ?? {})
+      .filter((entity): entity is HassEntity => Boolean(entity));
+    const musicAssistantPlayers = states.filter((entity) => (
+      isMusicAssistantPlayer(entity) && !isUnavailable(entity)
+    ));
+    const configured = this.config.entities ?? [];
+
+    const nextPlayers = configured.length > 0
+      ? configured.map((entityId) => {
+          const current = this.hass?.states[entityId];
+          if (!current || isUnavailable(current) || isMusicAssistantPlayer(current)) {
+            return entityId;
+          }
+
+          const roomName = normalizedSpeakerName(String(current.attributes.friendly_name ?? current.entity_id));
+          return musicAssistantPlayers.find((candidate) => (
+            normalizedSpeakerName(String(candidate.attributes.friendly_name ?? candidate.entity_id)) === roomName
+          ))?.entity_id ?? entityId;
+        })
+      : musicAssistantPlayers.map((entity) => entity.entity_id);
+    const uniquePlayers = nextPlayers.filter((entityId, index, entityIds) => (
+      entityIds.indexOf(entityId) === index
+    ));
+
+    this.updateConfig({
+      entities: uniquePlayers,
+      music_assistant_entities: uniquePlayers,
+    });
+  }
+
+  private renderSetupStatus(): TemplateResult | typeof nothing {
+    const configured = this.config.entities ?? [];
+
+    if (configured.length === 0) {
+      return nothing;
+    }
+
+    return html`
+      <div class="setup-status">
+        ${configured.map((entityId) => {
+          const player = this.hass?.states[entityId];
+          const unavailable = isUnavailable(player);
+          const ready = Boolean(player && isMusicAssistantPlayer(player) && !unavailable);
+          const status = ready ? 'Ready' : unavailable ? 'Offline' : 'Needs MA';
+          const statusClass = ready ? 'ready' : unavailable ? 'offline' : 'needs-ma';
+
+          return html`
+            <div class="setup-player">
+              <span class="setup-player-name">${player?.attributes.friendly_name ?? titleCase(entityId.split('.')[1] ?? entityId)}</span>
+              <span class="setup-badge ${statusClass}">${status}</span>
+            </div>
+          `;
+        })}
+      </div>
+    `;
   }
 
   private valueChanged(event: Event): void {
@@ -4919,7 +5360,14 @@ class GammaSonosPlayerCardEditor extends LitElement {
       <div class="editor">
         <section class="section">
           <h3>Main</h3>
+          <div class="setup-tools">
+            <button class="setup-button" @click=${this.autoConfigureMusicAssistantPlayers}>
+              Use Music Assistant players
+            </button>
+            <span class="setup-hint">Automatically replaces native Sonos and Google entities with their Music Assistant players.</span>
+          </div>
           ${this.renderEntityPicker('Players', 'entities', true)}
+          ${this.renderSetupStatus()}
           <div class="grid">
             ${this.renderTextInput('Name', 'name', 'Music')}
             ${this.renderTextInput(
