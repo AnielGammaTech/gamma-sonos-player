@@ -104,6 +104,7 @@ class PartyScreenBridge:
 
         chromium_profile = STATE_DIR / "chromium"
         chromium_profile.mkdir(exist_ok=True)
+        origin_url = MA_PARTY_URL.split("#", 1)[0]
         self.chromium = await asyncio.create_subprocess_exec(
             chromium_binary,
             "--no-sandbox",
@@ -119,7 +120,7 @@ class PartyScreenBridge:
             f"--user-data-dir={chromium_profile}",
             f"--window-size={SCREEN_WIDTH},{SCREEN_HEIGHT}",
             "--kiosk",
-            "about:blank",
+            origin_url,
             env={**os.environ, "DISPLAY": display},
         )
 
@@ -201,11 +202,12 @@ class PartyScreenBridge:
             if not websocket_url:
                 raise RuntimeError("Chromium debugging interface did not start")
 
-            origin_url = MA_PARTY_URL.split("#", 1)[0]
             async with session.ws_connect(websocket_url) as socket:
                 request_id = 1
 
-                async def command(method: str, params: dict[str, Any] | None = None) -> None:
+                async def command(
+                    method: str, params: dict[str, Any] | None = None
+                ) -> dict[str, Any]:
                     nonlocal request_id
                     await socket.send_json(
                         {"id": request_id, "method": method, "params": params or {}}
@@ -220,11 +222,15 @@ class PartyScreenBridge:
                         if payload.get("id") == expected_id:
                             if payload.get("error"):
                                 raise RuntimeError(str(payload["error"]))
-                            return
+                            result = payload.get("result", {})
+                            if result.get("exceptionDetails"):
+                                raise RuntimeError(
+                                    f"Chromium {method} failed: {result['exceptionDetails']}"
+                                )
+                            return result
 
                 await command("Page.enable")
-                await command("Page.navigate", {"url": origin_url})
-                await asyncio.sleep(2)
+                await asyncio.sleep(4)
 
                 if TOKEN_FILE.exists():
                     token = TOKEN_FILE.read_text(encoding="utf-8").strip()
@@ -243,8 +249,14 @@ class PartyScreenBridge:
                         "%s is missing; Party view may show the sign-in screen", TOKEN_FILE
                     )
 
-                await command("Page.navigate", {"url": MA_PARTY_URL})
-                await asyncio.sleep(5)
+                await command(
+                    "Runtime.evaluate",
+                    {
+                        "expression": f"window.location.replace({json.dumps(MA_PARTY_URL)})",
+                        "returnByValue": True,
+                    },
+                )
+                await asyncio.sleep(8)
 
     def _apple_tv_config(self) -> BaseConfig:
         if not CREDENTIALS_FILE.exists():
