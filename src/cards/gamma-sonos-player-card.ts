@@ -2426,13 +2426,25 @@ export class GammaSonosPlayerCard extends LitElement {
     }, 500);
   }
 
+  private get sonosGroupAnchor(): HassEntity | undefined {
+    if (this.isSonosBackedPlayer(this.activePlayer)) {
+      return this.activePlayer;
+    }
+
+    return (
+      this.currentlyPlayingPlayers.find((player) => this.isSonosBackedPlayer(player)) ??
+      this.allPlayers.find((player) => this.isSonosBackedPlayer(player))
+    );
+  }
+
   private get groupMembers(): string[] {
-    const members = this.activePlayer?.attributes.group_members;
+    const anchor = this.sonosGroupAnchor;
+    const members = anchor?.attributes.group_members;
     if (Array.isArray(members) && members.length > 0) {
       return members;
     }
 
-    const nativeSonos = this.nativeSonosMatch(this.activePlayer);
+    const nativeSonos = this.nativeSonosMatch(anchor);
     const nativeMembers = nativeSonos?.attributes.group_members;
     if (Array.isArray(nativeMembers) && nativeMembers.length > 1) {
       const musicAssistantMembers = nativeMembers
@@ -2452,11 +2464,11 @@ export class GammaSonosPlayerCard extends LitElement {
       }
     }
 
-    if (this.selectedGroupIds.includes(this.activeEntityId) && this.selectedGroupIds.length > 1) {
+    if (anchor && this.selectedGroupIds.includes(anchor.entity_id) && this.selectedGroupIds.length > 1) {
       return this.selectedGroupIds;
     }
 
-    return [this.activeEntityId].filter(Boolean);
+    return [anchor?.entity_id].filter((entityId): entityId is string => Boolean(entityId));
   }
 
   private nativeSonosMatch(entity?: HassEntity): HassEntity | undefined {
@@ -2480,7 +2492,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get groupablePlayers(): HassEntity[] {
-    const activePlayer = this.activePlayer;
+    const activePlayer = this.sonosGroupAnchor;
     const activeIsSonos = this.isSonosBackedPlayer(activePlayer);
     const seen = new Set<string>();
 
@@ -2805,18 +2817,19 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private groupSelected(): void {
     this.groupError = '';
+    const activePlayer = this.sonosGroupAnchor;
+    const anchorEntityId = activePlayer?.entity_id ?? '';
 
     if (
       this.groupPending ||
-      !this.activeEntityId ||
+      !anchorEntityId ||
       this.pendingGroupIds.length === 0
     ) {
       return;
     }
 
-    const activePlayer = this.activePlayer;
     const selectedPlayers = this.pendingGroupIds
-      .filter((id) => id !== this.activeEntityId)
+      .filter((id) => id !== anchorEntityId)
       .map((id) => this.hass?.states[id])
       .filter((player): player is HassEntity => {
         if (!player) {
@@ -2852,7 +2865,7 @@ export class GammaSonosPlayerCard extends LitElement {
     const previousSelectedEntityId = this.selectedEntityId;
     const previousSelectedGroupIds = [...this.selectedGroupIds];
     const previousPendingGroupIds = [...this.pendingGroupIds];
-    const visibleAnchorEntityId = this.activeEntityId;
+    const visibleAnchorEntityId = anchorEntityId;
     const visibleMemberIds = selectedPlayers.map((player) => player.entity_id);
 
     this.groupPending = true;
@@ -2952,13 +2965,15 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private ungroupActive(): void {
-    if (this.groupPending) {
+    const anchorEntityId = this.sonosGroupAnchor?.entity_id;
+
+    if (this.groupPending || !anchorEntityId) {
       return;
     }
 
     this.groupPending = true;
     void this.service('media_player', 'unjoin', {}, {
-      entity_id: this.activeEntityId,
+      entity_id: anchorEntityId,
     })
       .then(() => {
         this.selectedGroupIds = [];
@@ -4158,18 +4173,20 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private renderGrouping(): TemplateResult | typeof nothing {
     const groupablePlayers = this.groupablePlayers;
+    const groupAnchor = this.sonosGroupAnchor;
+    const anchorEntityId = groupAnchor?.entity_id ?? '';
 
     if (!this.config.show_grouping || groupablePlayers.length < 2) {
       return nothing;
     }
 
     const activeCanGroup =
-      groupablePlayers.some((player) => player.entity_id === this.activeEntityId) ||
-      Boolean(this.matchingMusicAssistantPlayer(this.activePlayer));
+      groupablePlayers.some((player) => player.entity_id === anchorEntityId) ||
+      Boolean(this.matchingMusicAssistantPlayer(groupAnchor));
     const pendingCount = this.pendingGroupIds.filter((id) => {
       const player = this.hass?.states[id];
       return (
-        id !== this.activeEntityId &&
+        id !== anchorEntityId &&
         groupablePlayers.some((groupable) => groupable.entity_id === player?.entity_id)
       );
     }).length;
@@ -4178,7 +4195,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
     return html`
       <section class="grouping">
-        <span class="section-title">Group Sonos</span>
+        <span class="section-title">Group Sonos${groupAnchor ? ` · ${groupAnchor.attributes.friendly_name ?? 'Main speaker'}` : ''}</span>
         ${this.groupError ? html`<div class="error">${this.groupError}</div>` : nothing}
         <div class="group-row">
           ${groupablePlayers.map((player) => {
@@ -4187,7 +4204,7 @@ export class GammaSonosPlayerCard extends LitElement {
               this.groupMembers.includes(player.entity_id);
             const pending = this.pendingGroupIds.includes(player.entity_id);
             const selected = inGroup || pending;
-            const isAnchor = player.entity_id === this.activeEntityId;
+            const isAnchor = player.entity_id === anchorEntityId;
 
             return html`
 	              <button
@@ -4798,8 +4815,8 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <section class="speakers">
         ${this.renderCurrentGroup()}
-        ${this.renderTransferPlayback()}
         ${this.renderGrouping()}
+        ${this.renderTransferPlayback()}
         <button
           class="section-toggle"
           @click=${() => {
