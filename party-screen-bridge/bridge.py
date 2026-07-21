@@ -7,6 +7,7 @@ rest_command services without putting AirPlay credentials in Lovelace.
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import json
 import logging
@@ -56,7 +57,7 @@ APPLE_TV_VV = os.getenv("APPLE_TV_VV", "1")
 
 SCREEN_WIDTH = int(os.getenv("SCREEN_WIDTH", "1280"))
 SCREEN_HEIGHT = int(os.getenv("SCREEN_HEIGHT", "720"))
-SCREEN_FPS = int(os.getenv("SCREEN_FPS", "20"))
+SCREEN_FPS = int(os.getenv("SCREEN_FPS", "5"))
 HTTP_PORT = int(os.getenv("HTTP_PORT", "8099"))
 
 
@@ -74,6 +75,7 @@ class PartyScreenBridge:
         self.xvfb: asyncio.subprocess.Process | None = None
         self.chromium: asyncio.subprocess.Process | None = None
         self.ffmpeg: asyncio.subprocess.Process | None = None
+        self.capture_task: asyncio.Task[None] | None = None
         self.airplay_task: asyncio.Task[None] | None = None
         self.apple_tv: Any | None = None
         self.last_error = ""
@@ -119,6 +121,7 @@ class PartyScreenBridge:
             "--remote-debugging-port=9222",
             f"--user-data-dir={chromium_profile}",
             f"--window-size={SCREEN_WIDTH},{SCREEN_HEIGHT}",
+            "--window-position=0,0",
             "--kiosk",
             origin_url,
             env={**os.environ, "DISPLAY": display},
@@ -132,15 +135,13 @@ class PartyScreenBridge:
             "-loglevel",
             "warning",
             "-f",
-            "x11grab",
-            "-draw_mouse",
-            "0",
+            "image2pipe",
             "-framerate",
             str(SCREEN_FPS),
-            "-video_size",
-            f"{SCREEN_WIDTH}x{SCREEN_HEIGHT}",
+            "-vcodec",
+            "mjpeg",
             "-i",
-            f"{display}.0",
+            "pipe:0",
             "-f",
             "lavfi",
             "-i",
@@ -155,6 +156,8 @@ class PartyScreenBridge:
             "baseline",
             "-pix_fmt",
             "yuv420p",
+            "-vf",
+            f"scale={SCREEN_WIDTH}:{SCREEN_HEIGHT}",
             "-g",
             str(SCREEN_FPS * 2),
             "-keyint_min",
@@ -174,7 +177,10 @@ class PartyScreenBridge:
             "-hls_flags",
             "delete_segments+append_list+independent_segments",
             str(HLS_DIR / "party.m3u8"),
-            env={**os.environ, "DISPLAY": display},
+            stdin=asyncio.subprocess.PIPE,
+        )
+        self.capture_task = asyncio.create_task(
+            self._capture_frames(), name="party-screen-capture"
         )
 
         for _ in range(30):
@@ -252,11 +258,54 @@ class PartyScreenBridge:
                 await command(
                     "Runtime.evaluate",
                     {
-                        "expression": f"window.location.replace({json.dumps(MA_PARTY_URL)})",
+                        "expression": "window.location.hash = '/party'",
                         "returnByValue": True,
                     },
                 )
+                await command("Page.reload", {"ignoreCache": True})
                 await asyncio.sleep(8)
+
+    async def _capture_frames(self) -> None:
+        """Feed Chromium screenshots to FFmpeg without relying on X11 compositing."""
+
+        if not self.ffmpeg or not self.ffmpeg.stdin:
+            raise RuntimeError("FFmpeg capture pipe is unavailable")
+
+        async with ClientSession() as session:
+            async with session.get("http://127.0.0.1:9222/json/list") as response:
+                tabs = await response.json()
+            if not tabs:
+                raise RuntimeError("Chromium has no page to capture")
+
+            async with session.ws_connect(tabs[0]["webSocketDebuggerUrl"]) as socket:
+                request_id = 1000
+                while True:
+                    await socket.send_json(
+                        {
+                            "id": request_id,
+                            "method": "Page.captureScreenshot",
+                            "params": {
+                                "format": "jpeg",
+                                "quality": 82,
+                                "fromSurface": True,
+                            },
+                        }
+                    )
+                    while True:
+                        message = await socket.receive(timeout=10)
+                        if message.type != WSMsgType.TEXT:
+                            raise RuntimeError("Chromium capture socket closed")
+                        payload = json.loads(message.data)
+                        if payload.get("id") != request_id:
+                            continue
+                        if payload.get("error"):
+                            raise RuntimeError(str(payload["error"]))
+                        frame = base64.b64decode(payload["result"]["data"])
+                        self.ffmpeg.stdin.write(frame)
+                        await self.ffmpeg.stdin.drain()
+                        break
+                    request_id += 1
+                    await asyncio.sleep(1 / SCREEN_FPS)
 
     def _apple_tv_config(self) -> BaseConfig:
         if not CREDENTIALS_FILE.exists():
@@ -329,6 +378,11 @@ class PartyScreenBridge:
 
     async def close(self) -> None:
         await self.stop_airplay()
+        if self.capture_task:
+            self.capture_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self.capture_task
+        self.capture_task = None
         for process in (self.ffmpeg, self.chromium, self.xvfb):
             if process and process.returncode is None:
                 process.terminate()
