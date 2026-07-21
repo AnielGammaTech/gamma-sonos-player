@@ -4731,12 +4731,8 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 }
 
-const gammaCustomElementRegistry = (
-  document as Document & { customElementRegistry?: CustomElementRegistry }
-).customElementRegistry ?? window.customElements;
-
-if (!gammaCustomElementRegistry.get('gamma-sonos-player-card')) {
-  gammaCustomElementRegistry.define('gamma-sonos-player-card', GammaSonosPlayerCard);
+if (!customElements.get('gamma-sonos-player-card')) {
+  customElements.define('gamma-sonos-player-card', GammaSonosPlayerCard);
 }
 
 class GammaSonosPlayerCardEditor extends LitElement {
@@ -4957,8 +4953,8 @@ class GammaSonosPlayerCardEditor extends LitElement {
   }
 }
 
-if (!gammaCustomElementRegistry.get('gamma-sonos-player-card-editor')) {
-  gammaCustomElementRegistry.define('gamma-sonos-player-card-editor', GammaSonosPlayerCardEditor);
+if (!customElements.get('gamma-sonos-player-card-editor')) {
+  customElements.define('gamma-sonos-player-card-editor', GammaSonosPlayerCardEditor);
 }
 
 declare global {
