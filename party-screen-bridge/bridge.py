@@ -19,10 +19,9 @@ from typing import Any
 
 from aiohttp import ClientSession, WSMsgType, web
 from pyatv import connect
-from pyatv.conf import AppleTV
+from pyatv.conf import AirPlayService, AppleTV
 from pyatv.const import Protocol
 from pyatv.interface import BaseConfig
-from pyatv.protocols.airplay import AirPlayService
 from pyatv.protocols.airplay.player import AirPlayPlayer
 
 
