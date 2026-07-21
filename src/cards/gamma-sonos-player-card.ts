@@ -1935,7 +1935,12 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get activePlayer(): HassEntity | undefined {
-    const selected = this.allPlayers.find((player) => player.entity_id === this.selectedEntityId);
+    const configuredEntityIds = this.config.entities?.length
+      ? this.config.entities
+      : (this.config.music_assistant_entities ?? []);
+    const selected = configuredEntityIds.includes(this.selectedEntityId)
+      ? this.hass?.states[this.selectedEntityId]
+      : undefined;
 
     if (selected) {
       return selected;
@@ -1949,9 +1954,12 @@ export class GammaSonosPlayerCard extends LitElement {
       ? this.normalizedRoomName(String(storedPlayer.attributes.friendly_name ?? storedPlayer.entity_id))
       : '';
     const selectedRoom = storedRoomName
-      ? this.allPlayers.find((player) => (
-        this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id)) === storedRoomName
-      ))
+      ? configuredEntityIds
+        .map((entityId) => this.hass?.states[entityId])
+        .find((player): player is HassEntity => Boolean(
+          player &&
+          this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id)) === storedRoomName
+        ))
       : undefined;
 
     return selectedRoom ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
@@ -1963,20 +1971,15 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private get playbackPlayer(): HassEntity | undefined {
     const active = this.activePlayer;
-    const musicAssistantPlayer = this.matchingMusicAssistantPlayer(active);
-    const candidates = [musicAssistantPlayer, active]
-      .filter((player, index, players): player is HassEntity => (
-        Boolean(player) &&
-        players.findIndex((candidate) => candidate?.entity_id === player?.entity_id) === index
-      ));
 
-    return candidates.find((player) => player.state === 'playing') ??
-      candidates.find((player) => Boolean(
-        player.attributes.media_title ||
-        player.attributes.entity_picture ||
-        player.attributes.entity_picture_local ||
-        player.attributes.media_image_url
-      ));
+    return active && (
+      active.state === 'playing' ||
+      active.attributes.media_title ||
+      active.attributes.entity_picture ||
+      active.attributes.entity_picture_local
+    )
+      ? active
+      : undefined;
   }
 
   private get playbackEntityId(): string {
@@ -2002,11 +2005,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get activeMemory(): PlaybackMemory | undefined {
-    const musicAssistantEntityId = this.matchingMusicAssistantPlayer(this.activePlayer)?.entity_id;
-    return (
-      (musicAssistantEntityId ? this.playbackMemory[musicAssistantEntityId] : undefined) ??
-      this.playbackMemory[this.activeEntityId]
-    );
+    return this.playbackMemory[this.activeEntityId];
   }
 
   private get volume(): number {
@@ -2216,7 +2215,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private rememberPlaybackState(): void {
-    const player = this.playbackPlayer ?? this.activePlayer;
+    const player = this.activePlayer;
     const title = String(player?.attributes.media_title ?? '');
     const artist = String(
       player?.attributes.media_artist ||
