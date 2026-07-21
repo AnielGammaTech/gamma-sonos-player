@@ -1935,9 +1935,26 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get activePlayer(): HassEntity | undefined {
-    const selected = this.hass?.states[this.selectedEntityId];
+    const selected = this.allPlayers.find((player) => player.entity_id === this.selectedEntityId);
 
-    return selected ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
+    if (selected) {
+      return selected;
+    }
+
+    // Older card releases stored the internal Music Assistant entity after
+    // playback. Resolve that stale value back to the configured room player so
+    // the selector never jumps to a hidden transport entity.
+    const storedPlayer = this.hass?.states[this.selectedEntityId];
+    const storedRoomName = storedPlayer
+      ? this.normalizedRoomName(String(storedPlayer.attributes.friendly_name ?? storedPlayer.entity_id))
+      : '';
+    const selectedRoom = storedRoomName
+      ? this.allPlayers.find((player) => (
+        this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id)) === storedRoomName
+      ))
+      : undefined;
+
+    return selectedRoom ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
   }
 
   private get activeEntityId(): string {
@@ -1946,15 +1963,20 @@ export class GammaSonosPlayerCard extends LitElement {
 
   private get playbackPlayer(): HassEntity | undefined {
     const active = this.activePlayer;
+    const musicAssistantPlayer = this.matchingMusicAssistantPlayer(active);
+    const candidates = [musicAssistantPlayer, active]
+      .filter((player, index, players): player is HassEntity => (
+        Boolean(player) &&
+        players.findIndex((candidate) => candidate?.entity_id === player?.entity_id) === index
+      ));
 
-    return active && (
-      active.state === 'playing' ||
-      active.attributes.media_title ||
-      active.attributes.entity_picture ||
-      active.attributes.entity_picture_local
-    )
-      ? active
-      : undefined;
+    return candidates.find((player) => player.state === 'playing') ??
+      candidates.find((player) => Boolean(
+        player.attributes.media_title ||
+        player.attributes.entity_picture ||
+        player.attributes.entity_picture_local ||
+        player.attributes.media_image_url
+      ));
   }
 
   private get playbackEntityId(): string {
@@ -1980,7 +2002,11 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get activeMemory(): PlaybackMemory | undefined {
-    return this.playbackMemory[this.activeEntityId];
+    const musicAssistantEntityId = this.matchingMusicAssistantPlayer(this.activePlayer)?.entity_id;
+    return (
+      (musicAssistantEntityId ? this.playbackMemory[musicAssistantEntityId] : undefined) ??
+      this.playbackMemory[this.activeEntityId]
+    );
   }
 
   private get volume(): number {
@@ -2190,7 +2216,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private rememberPlaybackState(): void {
-    const player = this.activePlayer;
+    const player = this.playbackPlayer ?? this.activePlayer;
     const title = String(player?.attributes.media_title ?? '');
     const artist = String(
       player?.attributes.media_artist ||
@@ -2705,6 +2731,7 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     const targetPlayer = targetPlayers[0];
+    const visibleTargetEntityId = targetPlayer.entity_id;
     const sourcePlayer = this.playbackPlayer;
     const sourceEntityId =
       this.matchingMusicAssistantPlayer(sourcePlayer)?.entity_id ?? this.playbackEntityId;
@@ -2716,12 +2743,12 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     const applySuccess = () => {
-      this.selectedEntityId = targetEntityId;
+      this.selectedEntityId = visibleTargetEntityId;
       this.pendingGroupIds = [];
       this.queueItems = [];
       this.queueError = '';
       this.lastInitialQueueEntityId = '';
-      this.writeStorage(LAST_PLAYER_STORAGE_KEY, targetEntityId);
+      this.writeStorage(LAST_PLAYER_STORAGE_KEY, visibleTargetEntityId);
       this.refreshQueueAfterPlayback();
     };
 
@@ -3560,6 +3587,7 @@ export class GammaSonosPlayerCard extends LitElement {
         : configuredEnqueue;
     const targetPlayer = this.matchingMusicAssistantPlayer(this.activePlayer);
     const targetEntityId = targetPlayer?.entity_id ?? '';
+    const visibleEntityId = this.activeEntityId;
 
     if (!targetPlayer || !targetEntityId) {
       this.playbackError = `No Music Assistant player matches ${this.activeName || 'the selected speaker'}. Add its Music Assistant entity in the card settings.`;
@@ -3567,8 +3595,7 @@ export class GammaSonosPlayerCard extends LitElement {
     }
 
     this.playbackPending = true;
-    this.writeStorage(LAST_PLAYER_STORAGE_KEY, targetEntityId);
-    this.selectedEntityId = targetEntityId;
+    this.writeStorage(LAST_PLAYER_STORAGE_KEY, visibleEntityId);
     const mediaType = item.media_type || item.type || 'track';
     const serviceData: Record<string, unknown> = {
       media_id: mediaId,

@@ -3,18 +3,18 @@
  * Copyright 2019 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const V = globalThis, Z = V.ShadowRoot && (V.ShadyCSS === void 0 || V.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, X = Symbol(), ie = /* @__PURE__ */ new WeakMap();
-let ye = class {
+const V = globalThis, X = V.ShadowRoot && (V.ShadyCSS === void 0 || V.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, ee = Symbol(), re = /* @__PURE__ */ new WeakMap();
+let fe = class {
   constructor(e, t, s) {
-    if (this._$cssResult$ = !0, s !== X) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+    if (this._$cssResult$ = !0, s !== ee) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
     this.cssText = e, this.t = t;
   }
   get styleSheet() {
     let e = this.o;
     const t = this.t;
-    if (Z && e === void 0) {
+    if (X && e === void 0) {
       const s = t !== void 0 && t.length === 1;
-      s && (e = ie.get(t)), e === void 0 && ((this.o = e = new CSSStyleSheet()).replaceSync(this.cssText), s && ie.set(t, e));
+      s && (e = re.get(t)), e === void 0 && ((this.o = e = new CSSStyleSheet()).replaceSync(this.cssText), s && re.set(t, e));
     }
     return e;
   }
@@ -22,70 +22,70 @@ let ye = class {
     return this.cssText;
   }
 };
-const Ae = (n) => new ye(typeof n == "string" ? n : n + "", void 0, X), fe = (n, ...e) => {
-  const t = n.length === 1 ? n[0] : e.reduce((s, i, r) => s + ((a) => {
+const Ae = (o) => new fe(typeof o == "string" ? o : o + "", void 0, ee), ve = (o, ...e) => {
+  const t = o.length === 1 ? o[0] : e.reduce((s, i, r) => s + ((a) => {
     if (a._$cssResult$ === !0) return a.cssText;
     if (typeof a == "number") return a;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + a + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(i) + n[r + 1], n[0]);
-  return new ye(t, n, X);
-}, Ee = (n, e) => {
-  if (Z) n.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
+  })(i) + o[r + 1], o[0]);
+  return new fe(t, o, ee);
+}, Ee = (o, e) => {
+  if (X) o.adoptedStyleSheets = e.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
   else for (const t of e) {
     const s = document.createElement("style"), i = V.litNonce;
-    i !== void 0 && s.setAttribute("nonce", i), s.textContent = t.cssText, n.appendChild(s);
+    i !== void 0 && s.setAttribute("nonce", i), s.textContent = t.cssText, o.appendChild(s);
   }
-}, re = Z ? (n) => n : (n) => n instanceof CSSStyleSheet ? ((e) => {
+}, ae = X ? (o) => o : (o) => o instanceof CSSStyleSheet ? ((e) => {
   let t = "";
   for (const s of e.cssRules) t += s.cssText;
   return Ae(t);
-})(n) : n;
+})(o) : o;
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: qe, defineProperty: Se, getOwnPropertyDescriptor: Ie, getOwnPropertyNames: Te, getOwnPropertySymbols: Me, getPrototypeOf: Re } = Object, $ = globalThis, ae = $.trustedTypes, Ce = ae ? ae.emptyScript : "", B = $.reactiveElementPolyfillSupport, C = (n, e) => n, W = { toAttribute(n, e) {
+const { is: Se, defineProperty: qe, getOwnPropertyDescriptor: Ie, getOwnPropertyNames: Te, getOwnPropertySymbols: Me, getPrototypeOf: Re } = Object, $ = globalThis, ne = $.trustedTypes, Ce = ne ? ne.emptyScript : "", H = $.reactiveElementPolyfillSupport, C = (o, e) => o, Y = { toAttribute(o, e) {
   switch (e) {
     case Boolean:
-      n = n ? Ce : null;
+      o = o ? Ce : null;
       break;
     case Object:
     case Array:
-      n = n == null ? n : JSON.stringify(n);
+      o = o == null ? o : JSON.stringify(o);
   }
-  return n;
-}, fromAttribute(n, e) {
-  let t = n;
+  return o;
+}, fromAttribute(o, e) {
+  let t = o;
   switch (e) {
     case Boolean:
-      t = n !== null;
+      t = o !== null;
       break;
     case Number:
-      t = n === null ? null : Number(n);
+      t = o === null ? null : Number(o);
       break;
     case Object:
     case Array:
       try {
-        t = JSON.parse(n);
+        t = JSON.parse(o);
       } catch {
         t = null;
       }
   }
   return t;
-} }, ve = (n, e) => !qe(n, e), ne = { attribute: !0, type: String, converter: W, reflect: !1, useDefault: !1, hasChanged: ve };
+} }, xe = (o, e) => !Se(o, e), oe = { attribute: !0, type: String, converter: Y, reflect: !1, useDefault: !1, hasChanged: xe };
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), $.litPropertyMetadata ?? ($.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let q = class extends HTMLElement {
+let S = class extends HTMLElement {
   static addInitializer(e) {
     this._$Ei(), (this.l ?? (this.l = [])).push(e);
   }
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(e, t = ne) {
+  static createProperty(e, t = oe) {
     if (t.state && (t.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(e) && ((t = Object.create(t)).wrapped = !0), this.elementProperties.set(e, t), !t.noAccessor) {
       const s = Symbol(), i = this.getPropertyDescriptor(e, s, t);
-      i !== void 0 && Se(this.prototype, e, i);
+      i !== void 0 && qe(this.prototype, e, i);
     }
   }
   static getPropertyDescriptor(e, t, s) {
@@ -95,12 +95,12 @@ let q = class extends HTMLElement {
       this[t] = a;
     } };
     return { get: i, set(a) {
-      const o = i == null ? void 0 : i.call(this);
-      r == null || r.call(this, a), this.requestUpdate(e, o, s);
+      const n = i == null ? void 0 : i.call(this);
+      r == null || r.call(this, a), this.requestUpdate(e, n, s);
     }, configurable: !0, enumerable: !0 };
   }
   static getPropertyOptions(e) {
-    return this.elementProperties.get(e) ?? ne;
+    return this.elementProperties.get(e) ?? oe;
   }
   static _$Ei() {
     if (this.hasOwnProperty(C("elementProperties"))) return;
@@ -129,8 +129,8 @@ let q = class extends HTMLElement {
     const t = [];
     if (Array.isArray(e)) {
       const s = new Set(e.flat(1 / 0).reverse());
-      for (const i of s) t.unshift(re(i));
-    } else e !== void 0 && t.push(re(e));
+      for (const i of s) t.unshift(ae(i));
+    } else e !== void 0 && t.push(ae(e));
     return t;
   }
   static _$Eu(e, t) {
@@ -184,7 +184,7 @@ let q = class extends HTMLElement {
     var r;
     const s = this.constructor.elementProperties.get(e), i = this.constructor._$Eu(e, s);
     if (i !== void 0 && s.reflect === !0) {
-      const a = (((r = s.converter) == null ? void 0 : r.toAttribute) !== void 0 ? s.converter : W).toAttribute(t, s.type);
+      const a = (((r = s.converter) == null ? void 0 : r.toAttribute) !== void 0 ? s.converter : Y).toAttribute(t, s.type);
       this._$Em = e, a == null ? this.removeAttribute(i) : this.setAttribute(i, a), this._$Em = null;
     }
   }
@@ -192,17 +192,17 @@ let q = class extends HTMLElement {
     var r, a;
     const s = this.constructor, i = s._$Eh.get(e);
     if (i !== void 0 && this._$Em !== i) {
-      const o = s.getPropertyOptions(i), c = typeof o.converter == "function" ? { fromAttribute: o.converter } : ((r = o.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? o.converter : W;
+      const n = s.getPropertyOptions(i), c = typeof n.converter == "function" ? { fromAttribute: n.converter } : ((r = n.converter) == null ? void 0 : r.fromAttribute) !== void 0 ? n.converter : Y;
       this._$Em = i;
-      const u = c.fromAttribute(t, o.type);
-      this[i] = u ?? ((a = this._$Ej) == null ? void 0 : a.get(i)) ?? u, this._$Em = null;
+      const d = c.fromAttribute(t, n.type);
+      this[i] = d ?? ((a = this._$Ej) == null ? void 0 : a.get(i)) ?? d, this._$Em = null;
     }
   }
   requestUpdate(e, t, s, i = !1, r) {
     var a;
     if (e !== void 0) {
-      const o = this.constructor;
-      if (i === !1 && (r = this[e]), s ?? (s = o.getPropertyOptions(e)), !((s.hasChanged ?? ve)(r, t) || s.useDefault && s.reflect && r === ((a = this._$Ej) == null ? void 0 : a.get(e)) && !this.hasAttribute(o._$Eu(e, s)))) return;
+      const n = this.constructor;
+      if (i === !1 && (r = this[e]), s ?? (s = n.getPropertyOptions(e)), !((s.hasChanged ?? xe)(r, t) || s.useDefault && s.reflect && r === ((a = this._$Ej) == null ? void 0 : a.get(e)) && !this.hasAttribute(n._$Eu(e, s)))) return;
       this.C(e, t, s);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
@@ -233,8 +233,8 @@ let q = class extends HTMLElement {
       }
       const i = this.constructor.elementProperties;
       if (i.size > 0) for (const [r, a] of i) {
-        const { wrapped: o } = a, c = this[r];
-        o !== !0 || this._$AL.has(r) || c === void 0 || this.C(r, void 0, a, c);
+        const { wrapped: n } = a, c = this[r];
+        n !== !0 || this._$AL.has(r) || c === void 0 || this.C(r, void 0, a, c);
       }
     }
     let e = !1;
@@ -278,48 +278,48 @@ let q = class extends HTMLElement {
   firstUpdated(e) {
   }
 };
-q.elementStyles = [], q.shadowRootOptions = { mode: "open" }, q[C("elementProperties")] = /* @__PURE__ */ new Map(), q[C("finalized")] = /* @__PURE__ */ new Map(), B == null || B({ ReactiveElement: q }), ($.reactiveElementVersions ?? ($.reactiveElementVersions = [])).push("2.1.2");
+S.elementStyles = [], S.shadowRootOptions = { mode: "open" }, S[C("elementProperties")] = /* @__PURE__ */ new Map(), S[C("finalized")] = /* @__PURE__ */ new Map(), H == null || H({ ReactiveElement: S }), ($.reactiveElementVersions ?? ($.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const N = globalThis, oe = (n) => n, Q = N.trustedTypes, ce = Q ? Q.createPolicy("lit-html", { createHTML: (n) => n }) : void 0, xe = "$lit$", _ = `lit$${Math.random().toFixed(9).slice(2)}$`, we = "?" + _, Ne = `<${we}>`, E = document, z = () => E.createComment(""), L = (n) => n === null || typeof n != "object" && typeof n != "function", ee = Array.isArray, ze = (n) => ee(n) || typeof (n == null ? void 0 : n[Symbol.iterator]) == "function", H = `[ 	
-\f\r]`, M = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, le = /-->/g, ue = />/g, k = RegExp(`>|${H}(?:([^\\s"'>=/]+)(${H}*=${H}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), de = /'/g, he = /"/g, _e = /^(?:script|style|textarea|title)$/i, Le = (n) => (e, ...t) => ({ _$litType$: n, strings: e, values: t }), d = Le(1), I = Symbol.for("lit-noChange"), p = Symbol.for("lit-nothing"), pe = /* @__PURE__ */ new WeakMap(), P = E.createTreeWalker(E, 129);
-function $e(n, e) {
-  if (!ee(n) || !n.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return ce !== void 0 ? ce.createHTML(e) : e;
+const N = globalThis, ce = (o) => o, Q = N.trustedTypes, le = Q ? Q.createPolicy("lit-html", { createHTML: (o) => o }) : void 0, we = "$lit$", _ = `lit$${Math.random().toFixed(9).slice(2)}$`, _e = "?" + _, Ne = `<${_e}>`, E = document, z = () => E.createComment(""), L = (o) => o === null || typeof o != "object" && typeof o != "function", te = Array.isArray, ze = (o) => te(o) || typeof (o == null ? void 0 : o[Symbol.iterator]) == "function", F = `[ 	
+\f\r]`, M = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, ue = /-->/g, de = />/g, k = RegExp(`>|${F}(?:([^\\s"'>=/]+)(${F}*=${F}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), he = /'/g, pe = /"/g, $e = /^(?:script|style|textarea|title)$/i, Le = (o) => (e, ...t) => ({ _$litType$: o, strings: e, values: t }), u = Le(1), I = Symbol.for("lit-noChange"), p = Symbol.for("lit-nothing"), me = /* @__PURE__ */ new WeakMap(), P = E.createTreeWalker(E, 129);
+function ke(o, e) {
+  if (!te(o) || !o.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  return le !== void 0 ? le.createHTML(e) : e;
 }
-const je = (n, e) => {
-  const t = n.length - 1, s = [];
+const je = (o, e) => {
+  const t = o.length - 1, s = [];
   let i, r = e === 2 ? "<svg>" : e === 3 ? "<math>" : "", a = M;
-  for (let o = 0; o < t; o++) {
-    const c = n[o];
-    let u, l, h = -1, m = 0;
-    for (; m < c.length && (a.lastIndex = m, l = a.exec(c), l !== null); ) m = a.lastIndex, a === M ? l[1] === "!--" ? a = le : l[1] !== void 0 ? a = ue : l[2] !== void 0 ? (_e.test(l[2]) && (i = RegExp("</" + l[2], "g")), a = k) : l[3] !== void 0 && (a = k) : a === k ? l[0] === ">" ? (a = i ?? M, h = -1) : l[1] === void 0 ? h = -2 : (h = a.lastIndex - l[2].length, u = l[1], a = l[3] === void 0 ? k : l[3] === '"' ? he : de) : a === he || a === de ? a = k : a === le || a === ue ? a = M : (a = k, i = void 0);
-    const g = a === k && n[o + 1].startsWith("/>") ? " " : "";
-    r += a === M ? c + Ne : h >= 0 ? (s.push(u), c.slice(0, h) + xe + c.slice(h) + _ + g) : c + _ + (h === -2 ? o : g);
+  for (let n = 0; n < t; n++) {
+    const c = o[n];
+    let d, l, h = -1, m = 0;
+    for (; m < c.length && (a.lastIndex = m, l = a.exec(c), l !== null); ) m = a.lastIndex, a === M ? l[1] === "!--" ? a = ue : l[1] !== void 0 ? a = de : l[2] !== void 0 ? ($e.test(l[2]) && (i = RegExp("</" + l[2], "g")), a = k) : l[3] !== void 0 && (a = k) : a === k ? l[0] === ">" ? (a = i ?? M, h = -1) : l[1] === void 0 ? h = -2 : (h = a.lastIndex - l[2].length, d = l[1], a = l[3] === void 0 ? k : l[3] === '"' ? pe : he) : a === pe || a === he ? a = k : a === ue || a === de ? a = M : (a = k, i = void 0);
+    const g = a === k && o[n + 1].startsWith("/>") ? " " : "";
+    r += a === M ? c + Ne : h >= 0 ? (s.push(d), c.slice(0, h) + we + c.slice(h) + _ + g) : c + _ + (h === -2 ? n : g);
   }
-  return [$e(n, r + (n[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), s];
+  return [ke(o, r + (o[t] || "<?>") + (e === 2 ? "</svg>" : e === 3 ? "</math>" : "")), s];
 };
 class j {
   constructor({ strings: e, _$litType$: t }, s) {
     let i;
     this.parts = [];
     let r = 0, a = 0;
-    const o = e.length - 1, c = this.parts, [u, l] = je(e, t);
-    if (this.el = j.createElement(u, s), P.currentNode = this.el.content, t === 2 || t === 3) {
+    const n = e.length - 1, c = this.parts, [d, l] = je(e, t);
+    if (this.el = j.createElement(d, s), P.currentNode = this.el.content, t === 2 || t === 3) {
       const h = this.el.content.firstChild;
       h.replaceWith(...h.childNodes);
     }
-    for (; (i = P.nextNode()) !== null && c.length < o; ) {
+    for (; (i = P.nextNode()) !== null && c.length < n; ) {
       if (i.nodeType === 1) {
-        if (i.hasAttributes()) for (const h of i.getAttributeNames()) if (h.endsWith(xe)) {
-          const m = l[a++], g = i.getAttribute(h).split(_), x = /([.?@])?(.*)/.exec(m);
-          c.push({ type: 1, index: r, name: x[2], strings: g, ctor: x[1] === "." ? Oe : x[1] === "?" ? Ve : x[1] === "@" ? Qe : G }), i.removeAttribute(h);
+        if (i.hasAttributes()) for (const h of i.getAttributeNames()) if (h.endsWith(we)) {
+          const m = l[a++], g = i.getAttribute(h).split(_), b = /([.?@])?(.*)/.exec(m);
+          c.push({ type: 1, index: r, name: b[2], strings: g, ctor: b[1] === "." ? Oe : b[1] === "?" ? Ve : b[1] === "@" ? Qe : G }), i.removeAttribute(h);
         } else h.startsWith(_) && (c.push({ type: 6, index: r }), i.removeAttribute(h));
-        if (_e.test(i.tagName)) {
+        if ($e.test(i.tagName)) {
           const h = i.textContent.split(_), m = h.length - 1;
           if (m > 0) {
             i.textContent = Q ? Q.emptyScript : "";
@@ -327,7 +327,7 @@ class j {
             i.append(h[m], z());
           }
         }
-      } else if (i.nodeType === 8) if (i.data === we) c.push({ type: 2, index: r });
+      } else if (i.nodeType === 8) if (i.data === _e) c.push({ type: 2, index: r });
       else {
         let h = -1;
         for (; (h = i.data.indexOf(_, h + 1)) !== -1; ) c.push({ type: 7, index: r }), h += _.length - 1;
@@ -340,12 +340,12 @@ class j {
     return s.innerHTML = e, s;
   }
 }
-function T(n, e, t = n, s) {
-  var a, o;
+function T(o, e, t = o, s) {
+  var a, n;
   if (e === I) return e;
   let i = s !== void 0 ? (a = t._$Co) == null ? void 0 : a[s] : t._$Cl;
   const r = L(e) ? void 0 : e._$litDirective$;
-  return (i == null ? void 0 : i.constructor) !== r && ((o = i == null ? void 0 : i._$AO) == null || o.call(i, !1), r === void 0 ? i = void 0 : (i = new r(n), i._$AT(n, t, s)), s !== void 0 ? (t._$Co ?? (t._$Co = []))[s] = i : t._$Cl = i), i !== void 0 && (e = T(n, i._$AS(n, e.values), i, s)), e;
+  return (i == null ? void 0 : i.constructor) !== r && ((n = i == null ? void 0 : i._$AO) == null || n.call(i, !1), r === void 0 ? i = void 0 : (i = new r(o), i._$AT(o, t, s)), s !== void 0 ? (t._$Co ?? (t._$Co = []))[s] = i : t._$Cl = i), i !== void 0 && (e = T(o, i._$AS(o, e.values), i, s)), e;
 }
 class Ue {
   constructor(e, t) {
@@ -360,11 +360,11 @@ class Ue {
   u(e) {
     const { el: { content: t }, parts: s } = this._$AD, i = ((e == null ? void 0 : e.creationScope) ?? E).importNode(t, !0);
     P.currentNode = i;
-    let r = P.nextNode(), a = 0, o = 0, c = s[0];
+    let r = P.nextNode(), a = 0, n = 0, c = s[0];
     for (; c !== void 0; ) {
       if (a === c.index) {
-        let u;
-        c.type === 2 ? u = new U(r, r.nextSibling, this, e) : c.type === 1 ? u = new c.ctor(r, c.name, c.strings, this, e) : c.type === 6 && (u = new Ge(r, this, e)), this._$AV.push(u), c = s[++o];
+        let d;
+        c.type === 2 ? d = new U(r, r.nextSibling, this, e) : c.type === 1 ? d = new c.ctor(r, c.name, c.strings, this, e) : c.type === 6 && (d = new Ge(r, this, e)), this._$AV.push(d), c = s[++n];
       }
       a !== (c == null ? void 0 : c.index) && (r = P.nextNode(), a++);
     }
@@ -408,19 +408,19 @@ class U {
   }
   $(e) {
     var r;
-    const { values: t, _$litType$: s } = e, i = typeof s == "number" ? this._$AC(e) : (s.el === void 0 && (s.el = j.createElement($e(s.h, s.h[0]), this.options)), s);
+    const { values: t, _$litType$: s } = e, i = typeof s == "number" ? this._$AC(e) : (s.el === void 0 && (s.el = j.createElement(ke(s.h, s.h[0]), this.options)), s);
     if (((r = this._$AH) == null ? void 0 : r._$AD) === i) this._$AH.p(t);
     else {
-      const a = new Ue(i, this), o = a.u(this.options);
-      a.p(t), this.T(o), this._$AH = a;
+      const a = new Ue(i, this), n = a.u(this.options);
+      a.p(t), this.T(n), this._$AH = a;
     }
   }
   _$AC(e) {
-    let t = pe.get(e.strings);
-    return t === void 0 && pe.set(e.strings, t = new j(e)), t;
+    let t = me.get(e.strings);
+    return t === void 0 && me.set(e.strings, t = new j(e)), t;
   }
   k(e) {
-    ee(this._$AH) || (this._$AH = [], this._$AR());
+    te(this._$AH) || (this._$AH = [], this._$AR());
     const t = this._$AH;
     let s, i = 0;
     for (const r of e) i === t.length ? t.push(s = new U(this.O(z()), this.O(z()), this, this.options)) : s = t[i], s._$AI(r), i++;
@@ -429,8 +429,8 @@ class U {
   _$AR(e = this._$AA.nextSibling, t) {
     var s;
     for ((s = this._$AP) == null ? void 0 : s.call(this, !1, !0, t); e !== this._$AB; ) {
-      const i = oe(e).nextSibling;
-      oe(e).remove(), e = i;
+      const i = ce(e).nextSibling;
+      ce(e).remove(), e = i;
     }
   }
   setConnected(e) {
@@ -453,9 +453,9 @@ class G {
     let a = !1;
     if (r === void 0) e = T(this, e, t, 0), a = !L(e) || e !== this._$AH && e !== I, a && (this._$AH = e);
     else {
-      const o = e;
-      let c, u;
-      for (e = r[0], c = 0; c < r.length - 1; c++) u = T(this, o[s + c], t, c), u === I && (u = this._$AH[c]), a || (a = !L(u) || u !== this._$AH[c]), u === p ? e = p : e !== p && (e += (u ?? "") + r[c + 1]), this._$AH[c] = u;
+      const n = e;
+      let c, d;
+      for (e = r[0], c = 0; c < r.length - 1; c++) d = T(this, n[s + c], t, c), d === I && (d = this._$AH[c]), a || (a = !L(d) || d !== this._$AH[c]), d === p ? e = p : e !== p && (e += (d ?? "") + r[c + 1]), this._$AH[c] = d;
     }
     a && !i && this.j(e);
   }
@@ -504,16 +504,16 @@ class Ge {
     T(this, e);
   }
 }
-const F = N.litHtmlPolyfillSupport;
-F == null || F(j, U), (N.litHtmlVersions ?? (N.litHtmlVersions = [])).push("3.3.2");
-const Be = (n, e, t) => {
+const D = N.litHtmlPolyfillSupport;
+D == null || D(j, U), (N.litHtmlVersions ?? (N.litHtmlVersions = [])).push("3.3.2");
+const Be = (o, e, t) => {
   const s = (t == null ? void 0 : t.renderBefore) ?? e;
   let i = s._$litPart$;
   if (i === void 0) {
     const r = (t == null ? void 0 : t.renderBefore) ?? null;
     s._$litPart$ = i = new U(e.insertBefore(z(), r), r, void 0, t ?? {});
   }
-  return i._$AI(n), i;
+  return i._$AI(o), i;
 };
 /**
  * @license
@@ -521,7 +521,7 @@ const Be = (n, e, t) => {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const A = globalThis;
-class S extends q {
+class q extends S {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
@@ -546,12 +546,12 @@ class S extends q {
     return I;
   }
 }
-var be;
-S._$litElement$ = !0, S.finalized = !0, (be = A.litElementHydrateSupport) == null || be.call(A, { LitElement: S });
-const D = A.litElementPolyfillSupport;
-D == null || D({ LitElement: S });
+var ye;
+q._$litElement$ = !0, q.finalized = !0, (ye = A.litElementHydrateSupport) == null || ye.call(A, { LitElement: q });
+const K = A.litElementPolyfillSupport;
+K == null || K({ LitElement: q });
 (A.litElementVersions ?? (A.litElementVersions = [])).push("4.2.2");
-const f = {
+const v = {
   width: "100%",
   height: "auto",
   fill_container: !0,
@@ -564,31 +564,31 @@ const f = {
   show_queue_hint: !0,
   background: "#101722",
   accent_color: "#39d98a"
-}, He = 524288, R = "gamma-sonos-player:last-player", me = "gamma-sonos-player:playback-memory", ge = "gamma-sonos-player:favorites", Fe = 1e4, K = 12e3, De = 2 * 6e4, Ke = 5 * 6e4, We = 30;
-function v(n, e) {
-  if (typeof n == "number" && Number.isFinite(n))
-    return n;
-  const t = Number(n);
+}, He = 524288, R = "gamma-sonos-player:last-player", ge = "gamma-sonos-player:playback-memory", be = "gamma-sonos-player:favorites", Fe = 1e4, W = 12e3, De = 2 * 6e4, Ke = 5 * 6e4, We = 30;
+function x(o, e) {
+  if (typeof o == "number" && Number.isFinite(o))
+    return o;
+  const t = Number(o);
   return Number.isFinite(t) ? t : e;
 }
-function b(n) {
-  return !n || n.state === "unavailable" || n.state === "unknown";
+function y(o) {
+  return !o || o.state === "unavailable" || o.state === "unknown";
 }
-function Ye(n) {
-  return !!(v(n == null ? void 0 : n.attributes.supported_features, 0) & He) || Array.isArray(n == null ? void 0 : n.attributes.group_members);
+function Ye(o) {
+  return !!(x(o == null ? void 0 : o.attributes.supported_features, 0) & He) || Array.isArray(o == null ? void 0 : o.attributes.group_members);
 }
-function y(n) {
-  const e = String((n == null ? void 0 : n.attributes.app_id) ?? "").toLowerCase(), t = String((n == null ? void 0 : n.attributes.platform) ?? "").toLowerCase(), s = String((n == null ? void 0 : n.attributes.source) ?? "").toLowerCase(), i = Array.isArray(n == null ? void 0 : n.attributes.source_list) ? n.attributes.source_list.join(" ").toLowerCase() : "";
-  return (n == null ? void 0 : n.attributes.mass_player_type) === "player" || !!(n != null && n.attributes.active_queue) || e.includes("music_assistant") || t.includes("music_assistant") || s.includes("music assistant") || i.includes("music assistant");
+function f(o) {
+  const e = String((o == null ? void 0 : o.attributes.app_id) ?? "").toLowerCase(), t = String((o == null ? void 0 : o.attributes.platform) ?? "").toLowerCase(), s = String((o == null ? void 0 : o.attributes.source) ?? "").toLowerCase(), i = Array.isArray(o == null ? void 0 : o.attributes.source_list) ? o.attributes.source_list.join(" ").toLowerCase() : "";
+  return (o == null ? void 0 : o.attributes.mass_player_type) === "player" || !!(o != null && o.attributes.active_queue) || e.includes("music_assistant") || t.includes("music_assistant") || s.includes("music assistant") || i.includes("music assistant");
 }
-function O(n) {
-  return !y(n) && Array.isArray(n == null ? void 0 : n.attributes.group_members);
+function O(o) {
+  return !f(o) && Array.isArray(o == null ? void 0 : o.attributes.group_members);
 }
-function w(n) {
-  return n.replace(/_/g, " ").replace(/\b\w/g, (e) => e.toUpperCase());
+function w(o) {
+  return o.replace(/_/g, " ").replace(/\b\w/g, (e) => e.toUpperCase());
 }
-function Je(n, e) {
-  n.dispatchEvent(
+function Je(o, e) {
+  o.dispatchEvent(
     new CustomEvent("config-changed", {
       detail: { config: e },
       bubbles: !0,
@@ -596,12 +596,12 @@ function Je(n, e) {
     })
   );
 }
-const te = class te extends S {
+const se = class se extends q {
   constructor() {
     super(...arguments), this.selectedEntityId = "", this.activeTab = "now", this.query = "", this.searching = !1, this.searchError = "", this.playbackError = "", this.searchResults = [], this.selectedGroupIds = [], this.pendingGroupIds = [], this.playbackPending = !1, this.groupPending = !1, this.browserView = "results", this.albumTracks = [], this.albumLoading = !1, this.albumError = "", this.playlistTracks = [], this.playlistLoading = !1, this.playlistError = "", this.showVolumeMixer = !1, this.showCurrentGroup = !1, this.groupError = "", this.queueItems = [], this.queueLoading = !1, this.queueError = "", this.playbackMemory = {}, this.transportPending = !1, this.favoriteItems = [], this.searchRequestId = 0, this.albumRequestId = 0, this.playlistRequestId = 0, this.lastInitialQueueEntityId = "", this.lastQueueSignature = "", this.queueRequestId = 0, this.cachedMediaPlayers = [], this.cachedAllPlayers = [], this.cachedPlayerConfigKey = "", this.searchCache = /* @__PURE__ */ new Map(), this.browseCache = /* @__PURE__ */ new Map(), this.volumeOverrides = /* @__PURE__ */ new Map(), this.volumeCommitTimers = /* @__PURE__ */ new Map(), this.volumeResetTimers = /* @__PURE__ */ new Map();
   }
   static get styles() {
-    return fe`
+    return ve`
       :host {
         --gamma-sonos-width: 420px;
         --gamma-sonos-height: 620px;
@@ -2021,15 +2021,15 @@ const te = class te extends S {
     return document.createElement("gamma-sonos-player-card-editor");
   }
   setConfig(e) {
-    this.config = { ...f, ...e }, this.selectedEntityId = this.config.entity || this.readStorage(R) || "", this.cachedPlayerConfigKey = "", this.playbackMemory = this.readPlaybackMemory(), this.favoriteItems = this.readFavoriteItems(), this.style.setProperty(
+    this.config = { ...v, ...e }, this.selectedEntityId = this.config.entity || this.readStorage(R) || "", this.cachedPlayerConfigKey = "", this.playbackMemory = this.readPlaybackMemory(), this.favoriteItems = this.readFavoriteItems(), this.style.setProperty(
       "--gamma-sonos-width",
-      this.config.fill_container ? "100%" : this.config.width ?? f.width
-    ), this.style.setProperty("--gamma-sonos-height", this.config.height ?? f.height), this.style.setProperty(
+      this.config.fill_container ? "100%" : this.config.width ?? v.width
+    ), this.style.setProperty("--gamma-sonos-height", this.config.height ?? v.height), this.style.setProperty(
       "--gamma-sonos-background",
-      this.config.background ?? f.background
+      this.config.background ?? v.background
     ), this.style.setProperty(
       "--gamma-sonos-accent",
-      this.config.accent_color ?? f.accent_color
+      this.config.accent_color ?? v.accent_color
     );
   }
   updated() {
@@ -2071,7 +2071,7 @@ const te = class te extends S {
     return e.trim().toLowerCase().replace(/^media_player\./, "").replace(/_/g, " ").replace(/\b(ma|mass)\b/g, "").replace(/\b(sonos|music assistant|speaker|player)\b/g, "").replace(/\s+/g, " ").trim();
   }
   preferredRoomPlayer(e, t) {
-    return e.entity_id === this.selectedEntityId || t.entity_id === this.selectedEntityId ? t.entity_id === this.selectedEntityId ? t : e : b(e) !== b(t) ? b(e) ? t : e : y(t) && !y(e) ? t : e;
+    return e.entity_id === this.selectedEntityId || t.entity_id === this.selectedEntityId ? t.entity_id === this.selectedEntityId ? t : e : y(e) !== y(t) ? y(e) ? t : e : f(t) && !f(e) ? t : e;
   }
   dedupeRoomPlayers(e) {
     const t = /* @__PURE__ */ new Map();
@@ -2102,16 +2102,20 @@ const te = class te extends S {
     return this.allPlayers.filter((e) => e.state === "playing");
   }
   get activePlayer() {
-    var t;
-    return ((t = this.hass) == null ? void 0 : t.states[this.selectedEntityId]) ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
+    var r;
+    const e = this.allPlayers.find((a) => a.entity_id === this.selectedEntityId);
+    if (e)
+      return e;
+    const t = (r = this.hass) == null ? void 0 : r.states[this.selectedEntityId], s = t ? this.normalizedRoomName(String(t.attributes.friendly_name ?? t.entity_id)) : "";
+    return (s ? this.allPlayers.find((a) => this.normalizedRoomName(String(a.attributes.friendly_name ?? a.entity_id)) === s) : void 0) ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
   }
   get activeEntityId() {
     var e;
     return ((e = this.activePlayer) == null ? void 0 : e.entity_id) ?? this.selectedEntityId;
   }
   get playbackPlayer() {
-    const e = this.activePlayer;
-    return e && (e.state === "playing" || e.attributes.media_title || e.attributes.entity_picture || e.attributes.entity_picture_local) ? e : void 0;
+    const e = this.activePlayer, s = [this.matchingMusicAssistantPlayer(e), e].filter((i, r, a) => !!i && a.findIndex((n) => (n == null ? void 0 : n.entity_id) === (i == null ? void 0 : i.entity_id)) === r);
+    return s.find((i) => i.state === "playing") ?? s.find((i) => !!(i.attributes.media_title || i.attributes.entity_picture || i.attributes.entity_picture_local || i.attributes.media_image_url));
   }
   get playbackEntityId() {
     var e;
@@ -2132,11 +2136,13 @@ const te = class te extends S {
     return ((e = this.playbackPlayer) == null ? void 0 : e.state) === "playing";
   }
   get activeMemory() {
-    return this.playbackMemory[this.activeEntityId];
+    var t;
+    const e = (t = this.matchingMusicAssistantPlayer(this.activePlayer)) == null ? void 0 : t.entity_id;
+    return (e ? this.playbackMemory[e] : void 0) ?? this.playbackMemory[this.activeEntityId];
   }
   get volume() {
     var i;
-    const e = this.volumeEntityId, t = (i = this.hass) == null ? void 0 : i.states[e], s = Math.round(v(t == null ? void 0 : t.attributes.volume_level, 0) * 100);
+    const e = this.volumeEntityId, t = (i = this.hass) == null ? void 0 : i.states[e], s = Math.round(x(t == null ? void 0 : t.attributes.volume_level, 0) * 100);
     return this.volumeOverrides.get(e) ?? s;
   }
   get volumeEntityId() {
@@ -2144,20 +2150,20 @@ const te = class te extends S {
   }
   get progressPercent() {
     var i, r, a;
-    const e = v((i = this.playbackPlayer) == null ? void 0 : i.attributes.media_duration, 0);
-    let t = v((r = this.playbackPlayer) == null ? void 0 : r.attributes.media_position, 0);
+    const e = x((i = this.playbackPlayer) == null ? void 0 : i.attributes.media_duration, 0);
+    let t = x((r = this.playbackPlayer) == null ? void 0 : r.attributes.media_position, 0);
     const s = String(((a = this.playbackPlayer) == null ? void 0 : a.attributes.media_position_updated_at) ?? "");
     if (e <= 0 || t < 0)
       return 0;
     if (this.isPlaying && s) {
-      const o = Date.parse(s);
-      Number.isFinite(o) && (t += Math.max(0, (Date.now() - o) / 1e3));
+      const n = Date.parse(s);
+      Number.isFinite(n) && (t += Math.max(0, (Date.now() - n) / 1e3));
     }
     return Math.max(0, Math.min(100, t / e * 100));
   }
   get hasProgress() {
     var e;
-    return v((e = this.playbackPlayer) == null ? void 0 : e.attributes.media_duration, 0) > 0;
+    return x((e = this.playbackPlayer) == null ? void 0 : e.attributes.media_duration, 0) > 0;
   }
   readStorage(e) {
     try {
@@ -2177,8 +2183,8 @@ const te = class te extends S {
   }
   async withTimeout(e, t, s) {
     let i;
-    const r = new Promise((a, o) => {
-      i = window.setTimeout(() => o(new Error(s)), t);
+    const r = new Promise((a, n) => {
+      i = window.setTimeout(() => n(new Error(s)), t);
     });
     try {
       return await Promise.race([e, r]);
@@ -2219,25 +2225,25 @@ const te = class te extends S {
   }
   readPlaybackMemory() {
     try {
-      const e = JSON.parse(this.readStorage(me) || "{}");
+      const e = JSON.parse(this.readStorage(ge) || "{}");
       return typeof e == "object" && e ? e : {};
     } catch {
       return {};
     }
   }
   writePlaybackMemory(e) {
-    this.writeStorage(me, JSON.stringify(e));
+    this.writeStorage(ge, JSON.stringify(e));
   }
   readFavoriteItems() {
     try {
-      const e = JSON.parse(this.readStorage(ge) || "[]");
+      const e = JSON.parse(this.readStorage(be) || "[]");
       return Array.isArray(e) ? e.map((t) => typeof t == "object" && t ? t : void 0).filter((t) => !!(t != null && t.name || t != null && t.uri)).slice(0, 60) : [];
     } catch {
       return [];
     }
   }
   writeFavoriteItems(e) {
-    this.writeStorage(ge, JSON.stringify(e.slice(0, 60)));
+    this.writeStorage(be, JSON.stringify(e.slice(0, 60)));
   }
   favoriteKey(e) {
     const t = e.media_type || e.type || "track", s = this.itemArtist(e).toLowerCase(), i = String(e.name ?? "").toLowerCase(), r = String(e.uri ?? "").toLowerCase();
@@ -2267,7 +2273,7 @@ const te = class te extends S {
     this.favoriteItems = i.slice(0, 60), this.writeFavoriteItems(this.favoriteItems);
   }
   rememberPlaybackState() {
-    const e = this.activePlayer, t = String((e == null ? void 0 : e.attributes.media_title) ?? ""), s = String(
+    const e = this.playbackPlayer ?? this.activePlayer, t = String((e == null ? void 0 : e.attributes.media_title) ?? ""), s = String(
       (e == null ? void 0 : e.attributes.media_artist) || (e == null ? void 0 : e.attributes.media_album_name) || (e == null ? void 0 : e.attributes.source) || ""
     ), i = String(
       (e == null ? void 0 : e.attributes.entity_picture) || (e == null ? void 0 : e.attributes.entity_picture_local) || (e == null ? void 0 : e.attributes.media_image_url) || ""
@@ -2316,19 +2322,19 @@ const te = class te extends S {
     return Array.isArray(e) ? e : [this.activeEntityId].filter(Boolean);
   }
   get groupablePlayers() {
-    const e = this.activePlayer, t = y(e), s = O(e), i = /* @__PURE__ */ new Set();
+    const e = this.activePlayer, t = f(e), s = O(e), i = /* @__PURE__ */ new Set();
     return this.allPlayers.filter((r) => {
-      if (b(r) || O(r) !== s)
+      if (y(r) || O(r) !== s)
         return !1;
-      const a = this.matchingMusicAssistantPlayer(r), o = Ye(r) || y(r) || !!a, c = t && a ? a.entity_id : r.entity_id;
-      return !o || i.has(c) ? !1 : (i.add(c), !0);
+      const a = this.matchingMusicAssistantPlayer(r), n = Ye(r) || f(r) || !!a, c = t && a ? a.entity_id : r.entity_id;
+      return !n || i.has(c) ? !1 : (i.add(c), !0);
     });
   }
   matchingMusicAssistantPlayer(e) {
     if (!e)
       return;
-    const t = new Set(this.config.music_assistant_entities ?? []), s = (o) => t.has(o.entity_id);
-    if (!b(e) && (y(e) || s(e)))
+    const t = new Set(this.config.music_assistant_entities ?? []), s = (n) => t.has(n.entity_id);
+    if (!y(e) && (f(e) || s(e)))
       return e;
     const [, i = ""] = e.entity_id.split("."), r = [
       `media_player.${i}_2`,
@@ -2336,7 +2342,7 @@ const te = class te extends S {
       `media_player.mass_${i}`,
       `media_player.${i}_music_assistant`
     ], a = this.normalizedRoomName(String(e.attributes.friendly_name ?? e.entity_id));
-    return this.mediaPlayers.find((o) => !b(o) && r.includes(o.entity_id) && (y(o) || s(o))) ?? this.mediaPlayers.find((o) => !b(o) && (y(o) || s(o)) && this.normalizedRoomName(String(o.attributes.friendly_name ?? o.entity_id)) === a);
+    return this.mediaPlayers.find((n) => !y(n) && r.includes(n.entity_id) && (f(n) || s(n))) ?? this.mediaPlayers.find((n) => !y(n) && (f(n) || s(n)) && this.normalizedRoomName(String(n.attributes.friendly_name ?? n.entity_id)) === a);
   }
   resolveGroupPlayers(e, t) {
     const s = [e, ...t], i = s.some((l) => O(l)), r = s.some((l) => !O(l));
@@ -2346,17 +2352,17 @@ const te = class te extends S {
         members: [],
         error: "Sonos speakers can only be grouped with other Sonos speakers."
       };
-    const a = s.some((l) => y(l)), o = s.some((l) => !y(l));
-    if (!a || !o)
+    const a = s.some((l) => f(l)), n = s.some((l) => !f(l));
+    if (!a || !n)
       return { anchor: e, members: t };
-    const c = this.matchingMusicAssistantPlayer(e), u = t.map((l) => this.matchingMusicAssistantPlayer(l)).filter((l) => !!l);
+    const c = this.matchingMusicAssistantPlayer(e), d = t.map((l) => this.matchingMusicAssistantPlayer(l)).filter((l) => !!l);
     if (!c)
       return {
         anchor: e,
         members: [],
         error: `Use the Music Assistant version of ${e.attributes.friendly_name ?? e.entity_id} as the main speaker for mixed groups.`
       };
-    if (u.length !== t.length) {
+    if (d.length !== t.length) {
       const l = t.filter((h) => !this.matchingMusicAssistantPlayer(h)).map((h) => h.attributes.friendly_name ?? w(h.entity_id.split(".")[1]));
       return {
         anchor: c,
@@ -2366,7 +2372,7 @@ const te = class te extends S {
     }
     return {
       anchor: c,
-      members: u.filter((l) => l.entity_id !== c.entity_id)
+      members: d.filter((l) => l.entity_id !== c.entity_id)
     };
   }
   service(e, t, s, i) {
@@ -2386,7 +2392,7 @@ const te = class te extends S {
   mediaService(e, t = {}, s = this.activeEntityId) {
     var r;
     const i = (r = this.hass) == null ? void 0 : r.states[s];
-    return !s || b(i) ? Promise.reject(new Error("That speaker is unavailable.")) : this.service("media_player", e, t, {
+    return !s || y(i) ? Promise.reject(new Error("That speaker is unavailable.")) : this.service("media_player", e, t, {
       entity_id: s
     });
   }
@@ -2406,7 +2412,7 @@ const te = class te extends S {
     if (this.transportPending)
       return;
     const t = this.matchingMusicAssistantPlayer(this.playbackPlayer) ?? this.playbackPlayer ?? this.activePlayer, s = (t == null ? void 0 : t.entity_id) ?? this.playbackEntityId;
-    !s || b((i = this.hass) == null ? void 0 : i.states[s]) || (this.transportPending = !0, this.service("media_player", e, {}, {
+    !s || y((i = this.hass) == null ? void 0 : i.states[s]) || (this.transportPending = !0, this.service("media_player", e, {}, {
       entity_id: s
     }).catch((r) => {
       this.playbackError = this.errorMessage(r, "Playback control failed.");
@@ -2453,7 +2459,7 @@ const te = class te extends S {
   reconcileVolumeOverrides() {
     this.volumeOverrides.forEach((e, t) => {
       var r;
-      const s = (r = this.hass) == null ? void 0 : r.states[t], i = Math.round(v(s == null ? void 0 : s.attributes.volume_level, -1) * 100);
+      const s = (r = this.hass) == null ? void 0 : r.states[t], i = Math.round(x(s == null ? void 0 : s.attributes.volume_level, -1) * 100);
       i >= 0 && Math.abs(i - e) <= 1 && (this.volumeOverrides.delete(t), window.clearTimeout(this.volumeResetTimers.get(t)), this.volumeResetTimers.delete(t));
     });
   }
@@ -2471,7 +2477,7 @@ const te = class te extends S {
   togglePlayerMute(e) {
     var s;
     const t = (s = this.hass) == null ? void 0 : s.states[e];
-    !t || b(t) || (this.playbackError = "", this.service("media_player", "volume_mute", {
+    !t || y(t) || (this.playbackError = "", this.service("media_player", "volume_mute", {
       is_volume_muted: !t.attributes.is_volume_muted
     }, {
       entity_id: e
@@ -2505,57 +2511,57 @@ const te = class te extends S {
       this.groupError = "Those selected speakers cannot be grouped with this main speaker.";
       return;
     }
-    const r = this.selectedEntityId, a = [...this.selectedGroupIds], o = [...this.pendingGroupIds], c = this.activeEntityId, u = t.map((l) => l.entity_id);
-    this.groupPending = !0, this.selectedGroupIds = [c, ...u], this.pendingGroupIds = [], this.service("media_player", "join", {
+    const r = this.selectedEntityId, a = [...this.selectedGroupIds], n = [...this.pendingGroupIds], c = this.activeEntityId, d = t.map((l) => l.entity_id);
+    this.groupPending = !0, this.selectedGroupIds = [c, ...d], this.pendingGroupIds = [], this.service("media_player", "join", {
       group_members: i
     }, {
       entity_id: s.anchor.entity_id
     }).then(() => {
       this.writeStorage(R, c);
     }).catch((l) => {
-      this.selectedEntityId = r, this.selectedGroupIds = a, this.pendingGroupIds = o, this.groupError = this.errorMessage(l, "Grouping failed.");
+      this.selectedEntityId = r, this.selectedGroupIds = a, this.pendingGroupIds = n, this.groupError = this.errorMessage(l, "Grouping failed.");
     }).finally(() => {
       this.groupPending = !1;
     });
   }
   continueInSelectedRoom() {
-    var o, c;
+    var c, d;
     this.groupError = "", this.playbackError = "";
-    const e = this.pendingGroupIds.map((u) => {
-      var l;
-      return (l = this.hass) == null ? void 0 : l.states[u];
-    }).filter((u) => u ? u.entity_id !== this.playbackEntityId && u.entity_id !== this.activeEntityId : !1);
+    const e = this.pendingGroupIds.map((l) => {
+      var h;
+      return (h = this.hass) == null ? void 0 : h.states[l];
+    }).filter((l) => l ? l.entity_id !== this.playbackEntityId && l.entity_id !== this.activeEntityId : !1);
     if (e.length !== 1) {
       this.groupError = "Select exactly one room to transfer playback.";
       return;
     }
-    const t = e[0], s = this.playbackPlayer, i = ((o = this.matchingMusicAssistantPlayer(s)) == null ? void 0 : o.entity_id) ?? this.playbackEntityId, r = ((c = this.matchingMusicAssistantPlayer(t)) == null ? void 0 : c.entity_id) ?? (t == null ? void 0 : t.entity_id);
-    if (!r || !i)
+    const t = e[0], s = t.entity_id, i = this.playbackPlayer, r = ((c = this.matchingMusicAssistantPlayer(i)) == null ? void 0 : c.entity_id) ?? this.playbackEntityId, a = ((d = this.matchingMusicAssistantPlayer(t)) == null ? void 0 : d.entity_id) ?? (t == null ? void 0 : t.entity_id);
+    if (!a || !r)
       return;
-    const a = () => {
-      this.selectedEntityId = r, this.pendingGroupIds = [], this.queueItems = [], this.queueError = "", this.lastInitialQueueEntityId = "", this.writeStorage(R, r), this.refreshQueueAfterPlayback();
+    const n = () => {
+      this.selectedEntityId = s, this.pendingGroupIds = [], this.queueItems = [], this.queueError = "", this.lastInitialQueueEntityId = "", this.writeStorage(R, s), this.refreshQueueAfterPlayback();
     };
     this.groupPending = !0, this.service("music_assistant", "transfer_queue", {
-      source_player: i,
+      source_player: r,
       auto_play: !0
     }, {
-      entity_id: r
-    }).then(a).catch(async () => {
-      const u = s, l = String((u == null ? void 0 : u.attributes.media_content_id) ?? ""), h = String((u == null ? void 0 : u.attributes.media_content_type) ?? "music");
-      if (!l) {
+      entity_id: a
+    }).then(n).catch(async () => {
+      const l = i, h = String((l == null ? void 0 : l.attributes.media_content_id) ?? ""), m = String((l == null ? void 0 : l.attributes.media_content_type) ?? "music");
+      if (!h) {
         this.playbackError = "That queue is not available anymore. Pick a song from search to start this room.";
         return;
       }
       try {
         await this.service("music_assistant", "play_media", {
-          media_id: l,
-          media_type: h,
+          media_id: h,
+          media_type: m,
           enqueue: "play"
         }, {
-          entity_id: r
-        }), a();
-      } catch (m) {
-        this.playbackError = this.errorMessage(m, "Playback transfer failed.");
+          entity_id: a
+        }), n();
+      } catch (g) {
+        this.playbackError = this.errorMessage(g, "Playback transfer failed.");
       }
     }).finally(() => {
       this.groupPending = !1;
@@ -2596,8 +2602,8 @@ const te = class te extends S {
     var i;
     const s = {
       name: e,
-      limit: v(this.config.search_limit, f.search_limit),
-      library_only: !!(this.config.library_only ?? f.library_only),
+      limit: x(this.config.search_limit, v.search_limit),
+      library_only: !!(this.config.library_only ?? v.library_only),
       ...t
     };
     return this.config.music_assistant_config_entry_id && (s.config_entry_id = this.config.music_assistant_config_entry_id), !s.media_type && ((i = this.config.search_media_types) != null && i.length) && (s.media_type = this.config.search_media_types), s;
@@ -2617,7 +2623,7 @@ const te = class te extends S {
         service_data: e,
         return_response: !0
       }),
-      K,
+      W,
       "Music search timed out. Check Music Assistant and try again."
     ), r = this.extractSearchResults(i);
     return this.cacheItems(this.searchCache, t, r, De), r;
@@ -2696,10 +2702,10 @@ const te = class te extends S {
         media_content_id: e.uri,
         media_content_type: t
       }),
-      K,
+      W,
       `Loading this ${t} timed out. Try again.`
-    ), o = this.extractBrowseTracks(a, e);
-    return this.cacheItems(this.browseCache, i, o, Ke), o;
+    ), n = this.extractBrowseTracks(a, e);
+    return this.cacheItems(this.browseCache, i, n, Ke), n;
   }
   async searchAlbumTracks(e) {
     const t = e.name ?? "", s = this.itemArtist(e), i = s || t;
@@ -2707,10 +2713,10 @@ const te = class te extends S {
       return [];
     const r = this.musicAssistantSearchData(i, {
       album: t,
-      limit: Math.max(40, v(this.config.search_limit, f.search_limit)),
+      limit: Math.max(40, x(this.config.search_limit, v.search_limit)),
       media_type: ["track"]
     });
-    return s && (r.artist = s), this.fetchMusicAssistantSearch(r).then((a) => a.filter((o) => (o.media_type || o.type) === "track"));
+    return s && (r.artist = s), this.fetchMusicAssistantSearch(r).then((a) => a.filter((n) => (n.media_type || n.type) === "track"));
   }
   async loadPlaylistTracks(e) {
     const t = ++this.playlistRequestId;
@@ -2728,30 +2734,30 @@ const te = class te extends S {
   }
   extractBrowseTracks(e, t) {
     var c;
-    const s = [], i = t.name ?? "", r = this.itemArtist(t), a = t.image || t.thumb || ((c = t.album) == null ? void 0 : c.image) || "", o = (u, l = 0) => {
-      if (typeof u != "object" || !u)
+    const s = [], i = t.name ?? "", r = this.itemArtist(t), a = t.image || t.thumb || ((c = t.album) == null ? void 0 : c.image) || "", n = (d, l = 0) => {
+      if (typeof d != "object" || !d)
         return;
-      const h = u, m = this.normalizedMediaType(
+      const h = d, m = this.normalizedMediaType(
         h.media_content_type || h.media_class,
         "track"
-      ), g = String(h.media_content_id ?? ""), x = String(h.title ?? h.name ?? ""), ke = Array.isArray(h.children) ? h.children : [];
-      l > 0 && !!g && !!x && (m === "track" || String(h.media_class ?? "").toLowerCase().includes("track") || h.can_play && !h.can_expand && m !== "album") && s.push({
-        name: x,
+      ), g = String(h.media_content_id ?? ""), b = String(h.title ?? h.name ?? ""), B = Array.isArray(h.children) ? h.children : [];
+      l > 0 && !!g && !!b && (m === "track" || String(h.media_class ?? "").toLowerCase().includes("track") || h.can_play && !h.can_expand && m !== "album") && s.push({
+        name: b,
         uri: g,
         media_type: "track",
         type: "track",
         artist: r,
         album: i ? { name: i, image: a } : t.album,
         image: String(h.thumbnail ?? h.image ?? a) || void 0
-      }), ke.forEach((Pe) => o(Pe, l + 1));
+      }), B.forEach((Pe) => n(Pe, l + 1));
     };
-    return o(e), s;
+    return n(e), s;
   }
   extractSearchResults(e) {
     const s = e.response ?? e, i = ["tracks", "albums", "artists", "playlists", "radio", "podcasts"], r = [];
     return i.forEach((a) => {
-      const o = s[a];
-      Array.isArray(o) && o.forEach((c) => {
+      const n = s[a];
+      Array.isArray(n) && n.forEach((c) => {
         typeof c == "object" && c && r.push(this.normalizeSearchItem(c, a === "tracks" ? "track" : a.slice(0, -1)));
       });
     }), r;
@@ -2771,14 +2777,14 @@ const te = class te extends S {
       media_type: r,
       type: r,
       artists: i,
-      artist: String(e.artist ?? e.media_artist ?? (i == null ? void 0 : i.map((o) => o.name).filter(Boolean).join(", ")) ?? ""),
+      artist: String(e.artist ?? e.media_artist ?? (i == null ? void 0 : i.map((n) => n.name).filter(Boolean).join(", ")) ?? ""),
       album: s,
       image: a || void 0
     };
   }
   queueTargetEntityId() {
     const e = this.matchingMusicAssistantPlayer(this.activePlayer);
-    return e && !b(e) ? e.entity_id : "";
+    return e && !y(e) ? e.entity_id : "";
   }
   queueServiceAttempts(e) {
     return [
@@ -2800,31 +2806,31 @@ const te = class te extends S {
     try {
       const r = [];
       let a = !1;
-      for (const o of this.queueServiceAttempts(t))
+      for (const n of this.queueServiceAttempts(t))
         try {
           const c = await this.withTimeout(
             this.hass.callWS({
               type: "call_service",
-              domain: o.domain,
-              service: o.service,
-              service_data: o.data,
+              domain: n.domain,
+              service: n.service,
+              service_data: n.data,
               return_response: !0
             }),
-            K,
+            W,
             "Queue refresh timed out. Check Music Assistant and try again."
           );
           if (s !== this.queueRequestId || t !== this.queueTargetEntityId())
             return;
           a = !0;
-          const u = this.extractQueueItems(c, t);
-          if (u.length > 0) {
-            this.queueItems = u, this.queueError = "";
+          const d = this.extractQueueItems(c, t);
+          if (d.length > 0) {
+            this.queueItems = d, this.queueError = "";
             return;
           }
         } catch (c) {
           if (s !== this.queueRequestId)
             return;
-          r.push(c instanceof Error ? c.message : `${o.domain}.${o.service} failed.`);
+          r.push(c instanceof Error ? c.message : `${n.domain}.${n.service} failed.`);
         }
       if (s !== this.queueRequestId || t !== this.queueTargetEntityId())
         return;
@@ -2836,7 +2842,7 @@ const te = class te extends S {
   extractQueueItems(e, t = "") {
     const s = this.responsePayload(e), i = this.queueResponseRoots(s, t);
     for (const r of i) {
-      const a = this.normalizeQueueItem(this.valueAtPath(r, ["current_item"])), o = [
+      const a = this.normalizeQueueItem(this.valueAtPath(r, ["current_item"])), n = [
         Array.isArray(r) ? r : void 0,
         this.valueAtPath(r, ["next_items"]),
         this.valueAtPath(r, ["upcoming_items"]),
@@ -2845,10 +2851,10 @@ const te = class te extends S {
         this.valueAtPath(r, ["queue"]),
         this.valueAtPath(r, ["next_item"])
       ];
-      for (const c of o) {
-        const u = this.queueItemsFromUnknown(c).filter((l) => !a || !this.sameQueueItem(l, a));
-        if (u.length > 0)
-          return this.dedupeQueueItems(u);
+      for (const c of n) {
+        const d = this.queueItemsFromUnknown(c).filter((l) => !a || !this.sameQueueItem(l, a));
+        if (d.length > 0)
+          return this.dedupeQueueItems(d);
       }
     }
     return [];
@@ -2904,19 +2910,19 @@ const te = class te extends S {
       return;
     const s = (typeof t.media_item == "object" && t.media_item ? t.media_item : void 0) ?? (typeof t.item == "object" && t.item ? t.item : void 0) ?? t, i = typeof s.album == "object" && s.album ? s.album : void 0, r = Array.isArray(s.artists) ? s.artists : void 0, a = String(
       s.name ?? t.name ?? t.title ?? t.media_title ?? ""
-    ), o = String(s.uri ?? t.uri ?? t.media_id ?? t.media_content_id ?? ""), c = this.normalizedMediaType(s.media_type ?? t.media_type ?? t.type, "track"), u = String(
+    ), n = String(s.uri ?? t.uri ?? t.media_id ?? t.media_content_id ?? ""), c = this.normalizedMediaType(s.media_type ?? t.media_type ?? t.type, "track"), d = String(
       s.image ?? t.image ?? t.thumbnail ?? t.entity_picture ?? t.media_image ?? t.local_image_encoded ?? (i == null ? void 0 : i.image) ?? ""
     );
-    if (!(!a && !o))
+    if (!(!a && !n))
       return {
-        name: a || o,
-        uri: o || void 0,
+        name: a || n,
+        uri: n || void 0,
         media_type: c,
         type: c,
         artists: r,
         artist: String(s.artist ?? t.artist ?? t.media_artist ?? ""),
         album: i,
-        image: u || void 0,
+        image: d || void 0,
         queue_item_id: String(t.queue_item_id ?? s.queue_item_id ?? "")
       };
   }
@@ -2956,52 +2962,52 @@ const te = class te extends S {
     const s = e.uri || e.name;
     if (!s)
       return;
-    const i = t ?? this.config.enqueue_mode ?? f.enqueue_mode, r = (i === "next" || i === "add") && !this.isPlaying ? "play" : i, a = this.matchingMusicAssistantPlayer(this.activePlayer), o = (a == null ? void 0 : a.entity_id) ?? "";
-    if (!a || !o) {
+    const i = t ?? this.config.enqueue_mode ?? v.enqueue_mode, r = (i === "next" || i === "add") && !this.isPlaying ? "play" : i, a = this.matchingMusicAssistantPlayer(this.activePlayer), n = (a == null ? void 0 : a.entity_id) ?? "", c = this.activeEntityId;
+    if (!a || !n) {
       this.playbackError = `No Music Assistant player matches ${this.activeName || "the selected speaker"}. Add its Music Assistant entity in the card settings.`;
       return;
     }
-    this.playbackPending = !0, this.writeStorage(R, o), this.selectedEntityId = o;
-    const c = e.media_type || e.type || "track", u = {
+    this.playbackPending = !0, this.writeStorage(R, c);
+    const d = e.media_type || e.type || "track", l = {
       media_id: s,
-      media_type: c,
+      media_type: d,
       enqueue: r
-    }, l = this.itemArtist(e), h = this.itemAlbum(e);
-    l && !String(s).includes("://") && (c === "track" || c === "album") && (u.artist = l), h && !String(s).includes("://") && c === "track" && (u.album = h), this.service("music_assistant", "play_media", u, {
-      entity_id: o
-    }).catch(async (m) => {
+    }, h = this.itemArtist(e), m = this.itemAlbum(e);
+    h && !String(s).includes("://") && (d === "track" || d === "album") && (l.artist = h), m && !String(s).includes("://") && d === "track" && (l.album = m), this.service("music_assistant", "play_media", l, {
+      entity_id: n
+    }).catch(async (g) => {
       if (r === "next") {
         try {
           await this.service("music_assistant", "play_media", {
             media_id: s,
-            media_type: c,
+            media_type: d,
             enqueue: "add"
           }, {
-            entity_id: o
+            entity_id: n
           });
-        } catch (g) {
-          this.playbackError = this.errorMessage(g, "Music Assistant queue add failed.");
+        } catch (b) {
+          this.playbackError = this.errorMessage(b, "Music Assistant queue add failed.");
         }
         return;
       }
       if (e.uri && e.name) {
-        const g = {
+        const b = {
           media_id: e.name,
-          media_type: c,
+          media_type: d,
           enqueue: r
         };
-        l && (c === "track" || c === "album") && (g.artist = l), h && c === "track" && (g.album = h);
+        h && (d === "track" || d === "album") && (b.artist = h), m && d === "track" && (b.album = m);
         try {
-          await this.service("music_assistant", "play_media", g, {
-            entity_id: o
+          await this.service("music_assistant", "play_media", b, {
+            entity_id: n
           });
           return;
-        } catch (x) {
-          this.playbackError = `Could not play ${e.name} on ${a.attributes.friendly_name ?? o}: ${this.errorMessage(x, "no playable result was found")}`;
+        } catch (B) {
+          this.playbackError = `Could not play ${e.name} on ${a.attributes.friendly_name ?? n}: ${this.errorMessage(B, "no playable result was found")}`;
           return;
         }
       }
-      this.playbackError = `Could not play this item on ${a.attributes.friendly_name ?? o}: ${this.errorMessage(m, "Music Assistant playback failed.")}`;
+      this.playbackError = `Could not play this item on ${a.attributes.friendly_name ?? n}: ${this.errorMessage(g, "Music Assistant playback failed.")}`;
     }).finally(() => {
       this.playbackPending = !1, this.refreshQueueAfterPlayback();
     });
@@ -3026,13 +3032,13 @@ const te = class te extends S {
   }
   renderRooms() {
     const e = this.currentlyPlayingPlayers;
-    return e.length < 2 ? p : d`
+    return e.length < 2 ? p : u`
       <div class="rooms">
         <span class="now-label">Playing in</span>
         <div class="now-row">
           <div class="now-speakers">
             ${e.map(
-      (t) => d`
+      (t) => u`
                 <span class="now-chip">
                   ${t.attributes.friendly_name ?? w(t.entity_id.split(".")[1])}
                 </span>
@@ -3045,24 +3051,24 @@ const te = class te extends S {
   }
   playerPickerLabel(e, t) {
     const s = e.attributes.friendly_name ?? w(e.entity_id.split(".")[1]);
-    return t.filter((r) => (r.attributes.friendly_name ?? w(r.entity_id.split(".")[1])).trim().toLowerCase() === s.trim().toLowerCase()).length < 2 ? s : y(e) ? `${s} (Music Assistant)` : Array.isArray(e.attributes.group_members) ? `${s} (Sonos)` : `${s} (${e.entity_id.split(".")[1]})`;
+    return t.filter((r) => (r.attributes.friendly_name ?? w(r.entity_id.split(".")[1])).trim().toLowerCase() === s.trim().toLowerCase()).length < 2 ? s : f(e) ? `${s} (Music Assistant)` : Array.isArray(e.attributes.group_members) ? `${s} (Sonos)` : `${s} (${e.entity_id.split(".")[1]})`;
   }
   renderPlayerPicker(e, t = !1) {
-    return d`
+    return u`
       <label class="player-picker ${t ? "header-picker" : ""}">
         <ha-icon .icon=${"mdi:speaker"}></ha-icon>
         <select
           .value=${this.activeEntityId}
           @change=${(s) => {
-      var o;
-      const i = s.target.value, r = (o = this.hass) == null ? void 0 : o.states[i];
+      var n;
+      const i = s.target.value, r = (n = this.hass) == null ? void 0 : n.states[i];
       this.selectedEntityId = i, this.writeStorage(R, i);
       const a = r == null ? void 0 : r.attributes.group_members;
       this.selectedGroupIds = Array.isArray(a) ? [...a] : [i], this.pendingGroupIds = [], this.queueItems = [], this.queueError = "", this.queueLoading = !1, this.queueRequestId += 1, this.lastQueueSignature = "", this.lastInitialQueueEntityId = "", window.clearTimeout(this.queueRefreshTimer), window.clearTimeout(this.queueRefreshRetryTimer), window.clearTimeout(this.initialQueueRefreshTimer), this.activeTab === "queue" && this.refreshQueue();
     }}
         >
           ${e.map(
-      (s) => d`
+      (s) => u`
               <option
                 .value=${s.entity_id}
                 ?selected=${s.entity_id === this.activeEntityId}
@@ -3077,21 +3083,21 @@ const te = class te extends S {
   }
   renderHeaderIdentity() {
     const e = this.allPlayers;
-    return d`
+    return u`
       <div class="title">
-        ${e.length > 1 ? this.renderPlayerPicker(e, !0) : d`<span class="name">${this.activeName || "Sonos"}</span>`}
+        ${e.length > 1 ? this.renderPlayerPicker(e, !0) : u`<span class="name">${this.activeName || "Sonos"}</span>`}
       </div>
     `;
   }
   renderTopControls(e, t) {
-    return d`
+    return u`
       <div class="top-controls">
         <span class="header-state">${e ? "Unavailable" : w((t == null ? void 0 : t.state) ?? "idle")}</span>
       </div>
     `;
   }
   renderMiniPlayer(e, t, s) {
-    return d`
+    return u`
       <section class="mini-player">
         <div class="mini-art" aria-label="Artwork"></div>
         <div class="mini-meta">
@@ -3128,34 +3134,34 @@ const te = class te extends S {
     const e = this.groupablePlayers;
     if (!this.config.show_grouping || e.length < 2)
       return p;
-    const t = e.some((o) => o.entity_id === this.activeEntityId) || !!this.matchingMusicAssistantPlayer(this.activePlayer), s = this.pendingGroupIds.filter((o) => {
-      var u;
-      const c = (u = this.hass) == null ? void 0 : u.states[o];
-      return o !== this.activeEntityId && e.some((l) => l.entity_id === (c == null ? void 0 : c.entity_id));
-    }).length, i = this.pendingGroupIds.filter((o) => {
-      var u;
-      const c = (u = this.hass) == null ? void 0 : u.states[o];
-      return !!(c && o !== this.activeEntityId && o !== this.playbackEntityId && e.some((l) => l.entity_id === c.entity_id));
+    const t = e.some((n) => n.entity_id === this.activeEntityId) || !!this.matchingMusicAssistantPlayer(this.activePlayer), s = this.pendingGroupIds.filter((n) => {
+      var d;
+      const c = (d = this.hass) == null ? void 0 : d.states[n];
+      return n !== this.activeEntityId && e.some((l) => l.entity_id === (c == null ? void 0 : c.entity_id));
+    }).length, i = this.pendingGroupIds.filter((n) => {
+      var d;
+      const c = (d = this.hass) == null ? void 0 : d.states[n];
+      return !!(c && n !== this.activeEntityId && n !== this.playbackEntityId && e.some((l) => l.entity_id === c.entity_id));
     }).length, r = this.groupMembers.length, a = r > 1;
-    return d`
+    return u`
       <section class="grouping">
         <span class="section-title">Choose Speakers</span>
-        ${this.groupError ? d`<div class="error">${this.groupError}</div>` : p}
+        ${this.groupError ? u`<div class="error">${this.groupError}</div>` : p}
         <div class="group-row">
-          ${e.map((o) => {
-      const c = this.selectedGroupIds.includes(o.entity_id) || this.groupMembers.includes(o.entity_id), u = this.pendingGroupIds.includes(o.entity_id), l = c || u, h = o.entity_id === this.activeEntityId;
-      return d`
+          ${e.map((n) => {
+      const c = this.selectedGroupIds.includes(n.entity_id) || this.groupMembers.includes(n.entity_id), d = this.pendingGroupIds.includes(n.entity_id), l = c || d, h = n.entity_id === this.activeEntityId;
+      return u`
 	              <button
 	                class="group-chip ${l ? "active" : ""} ${h ? "anchor" : ""}"
 	                ?disabled=${h || this.groupPending}
                   title=${h ? "Current room" : l ? "Remove from selection" : "Add to selection"}
-                @click=${() => this.toggleGroupSelection(o.entity_id)}
+                @click=${() => this.toggleGroupSelection(n.entity_id)}
               >
                 <span class="group-check">${l ? "✓" : ""}</span>
                 <span class="group-name">
-                  ${o.attributes.friendly_name ?? w(o.entity_id.split(".")[1])}
+                  ${n.attributes.friendly_name ?? w(n.entity_id.split(".")[1])}
                 </span>
-                <span class="group-status">${h ? "This room" : c ? "In group" : u ? "Selected" : "Available"}</span>
+                <span class="group-status">${h ? "This room" : c ? "In group" : d ? "Selected" : "Available"}</span>
               </button>
             `;
     })}
@@ -3212,7 +3218,7 @@ const te = class te extends S {
       var s;
       return (s = this.hass) == null ? void 0 : s.states[t];
     }).filter((t) => !!t);
-    return e.length <= 1 ? p : d`
+    return e.length <= 1 ? p : u`
       <section class="current-group">
         <button
           class="section-toggle"
@@ -3224,7 +3230,7 @@ const te = class te extends S {
           <ha-icon .icon=${this.showCurrentGroup ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         </button>
         ${this.showCurrentGroup ? e.map(
-      (t) => d`
+      (t) => u`
                 <div class="current-member">
                   <span class="speaker-name">
                     ${t.attributes.friendly_name ?? w(t.entity_id.split(".")[1])}
@@ -3243,7 +3249,7 @@ const te = class te extends S {
     `;
   }
   renderTabs() {
-    return d`
+    return u`
       <div
         class="tabs"
         aria-label="Player panels"
@@ -3271,7 +3277,7 @@ const te = class te extends S {
     }}
         >
           Queue
-          ${this.queueItems.length > 0 ? d`<span class="tab-count">${Math.min(this.queueItems.length, 99)}</span>` : p}
+          ${this.queueItems.length > 0 ? u`<span class="tab-count">${Math.min(this.queueItems.length, 99)}</span>` : p}
         </button>
         <button
           class=${this.activeTab === "speakers" ? "active" : ""}
@@ -3286,19 +3292,19 @@ const te = class te extends S {
   }
   renderNowPlaying(e, t, s) {
     const i = this.artworkUrl, r = !i && e === "No music selected";
-    return d`
+    return u`
       <section class="now-view ${r ? "empty" : ""}">
         <div class="now-layout ${r ? "" : "with-queue"}">
           <div class="now-primary">
             <div class="now-artwork ${i ? "has-art" : "empty"}" aria-label="Current album artwork">
-              ${i ? d`<img src=${i} alt="" loading="eager" decoding="async" />` : d`
+              ${i ? u`<img src=${i} alt="" loading="eager" decoding="async" />` : u`
                     <span class="artwork-empty">
                       <ha-icon .icon=${"mdi:music-note"}></ha-icon>
                       <span>${r ? "Ready to play" : "Artwork unavailable"}</span>
                     </span>
                   `}
             </div>
-            ${this.hasProgress ? d`
+            ${this.hasProgress ? u`
                   <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${String(Math.round(this.progressPercent))}>
                     <div class="progress-fill" style=${`width: ${this.progressPercent}%`}></div>
                   </div>
@@ -3307,9 +3313,9 @@ const te = class te extends S {
               <span class="track">${e}</span>
               <span class="artist">${r ? "Browse Music Assistant or choose a room" : t}</span>
             </div>
-            ${r ? d`
+            ${r ? u`
                   <div class="empty-actions">
-                    ${this.config.show_search ? d`
+                    ${this.config.show_search ? u`
                           <button class="small-action primary" @click=${() => {
       this.activeTab = "search";
     }}>
@@ -3317,7 +3323,7 @@ const te = class te extends S {
                             Browse music
                           </button>
                         ` : p}
-                    ${this.config.show_grouping ? d`
+                    ${this.config.show_grouping ? u`
                           <button class="small-action" @click=${() => {
       this.activeTab = "speakers";
     }}>
@@ -3361,7 +3367,7 @@ const te = class te extends S {
   }
   renderUpNextPreview() {
     const e = this.queueItems.slice(0, 3);
-    return d`
+    return u`
       <aside class="up-next-card" aria-label="Upcoming queue">
         <div class="up-next-header">
           <span class="up-next-title">
@@ -3369,7 +3375,7 @@ const te = class te extends S {
             <span class="up-next-heading">Up Next</span>
           </span>
           <span class="queue-toolbar-actions">
-            ${this.queueItems.length > 0 ? d`<span class="queue-count">${this.queueItems.length}</span>` : p}
+            ${this.queueItems.length > 0 ? u`<span class="queue-count">${this.queueItems.length}</span>` : p}
             <button class="small-action" @click=${() => {
       this.activeTab = "queue", this.refreshQueue();
     }}>
@@ -3377,20 +3383,20 @@ const te = class te extends S {
             </button>
           </span>
         </div>
-        ${this.queueLoading && e.length === 0 ? d`<div class="hint">Loading what’s next…</div>` : p}
-        ${e.length > 0 ? d`
+        ${this.queueLoading && e.length === 0 ? u`<div class="hint">Loading what’s next…</div>` : p}
+        ${e.length > 0 ? u`
               <div class="queue-preview-list">
                 ${e.map((t, s) => this.renderQueueItem(t, s, !0))}
               </div>
             ` : p}
-        ${!this.queueLoading && e.length === 0 ? d`
+        ${!this.queueLoading && e.length === 0 ? u`
               <div class="queue-empty">
                 <ha-icon .icon=${this.queueError ? "mdi:playlist-alert" : "mdi:playlist-plus"}></ha-icon>
                 <strong>${this.queueError ? "Queue unavailable" : "Nothing queued yet"}</strong>
                 <span>${this.queueError ? this.queueError : "Browse for music and use Next to line up a song."}</span>
                 <div class="queue-empty-actions">
-                  ${this.queueError ? d`<button class="small-action" @click=${() => this.refreshQueue()}>Retry</button>` : p}
-                  ${this.config.show_search ? d`<button class="small-action" @click=${() => {
+                  ${this.queueError ? u`<button class="small-action" @click=${() => this.refreshQueue()}>Retry</button>` : p}
+                  ${this.config.show_search ? u`<button class="small-action" @click=${() => {
       this.activeTab = "search";
     }}>Browse music</button>` : p}
                 </div>
@@ -3400,7 +3406,7 @@ const te = class te extends S {
     `;
   }
   renderQueue() {
-    return d`
+    return u`
       <section class="queue">
         <div class="queue-header">
           <span class="queue-title">
@@ -3408,8 +3414,8 @@ const te = class te extends S {
             <span class="queue-heading">Up Next</span>
           </span>
           <span class="queue-toolbar-actions">
-            ${this.queueItems.length > 0 ? d`<span class="queue-count">${this.queueItems.length}</span>` : p}
-            ${this.config.show_search ? d`
+            ${this.queueItems.length > 0 ? u`<span class="queue-count">${this.queueItems.length}</span>` : p}
+            ${this.config.show_search ? u`
                   <button class="small-action" @click=${() => {
       this.activeTab = "search";
     }}>
@@ -3426,21 +3432,21 @@ const te = class te extends S {
           </span>
         </div>
         ${this.renderQueueCurrent()}
-        ${this.queueLoading ? d`<div class="hint">Loading queue...</div>` : p}
-        ${!this.queueLoading && this.queueItems.length === 0 ? d`
+        ${this.queueLoading ? u`<div class="hint">Loading queue...</div>` : p}
+        ${!this.queueLoading && this.queueItems.length === 0 ? u`
               <div class="queue-empty">
                 <ha-icon .icon=${this.queueError ? "mdi:playlist-alert" : "mdi:playlist-plus"}></ha-icon>
                 <strong>${this.queueError ? "Queue unavailable" : "Your queue is open"}</strong>
                 <span>${this.queueError ? this.queueError : "Find something in Browse and tap Next to add it here."}</span>
                 <div class="queue-empty-actions">
-                  ${this.queueError ? d`<button class="small-action" @click=${() => this.refreshQueue()}>Retry</button>` : p}
-                  ${this.config.show_search ? d`<button class="small-action" @click=${() => {
+                  ${this.queueError ? u`<button class="small-action" @click=${() => this.refreshQueue()}>Retry</button>` : p}
+                  ${this.config.show_search ? u`<button class="small-action" @click=${() => {
       this.activeTab = "search";
     }}>Browse music</button>` : p}
                 </div>
               </div>
             ` : p}
-        ${this.queueItems.length > 0 ? d`
+        ${this.queueItems.length > 0 ? u`
               <div class="queue-list">
                 ${this.queueItems.map((e, t) => this.renderQueueItem(e, t))}
               </div>
@@ -3456,10 +3462,10 @@ const te = class te extends S {
     const s = String(
       (e == null ? void 0 : e.attributes.media_artist) || (e == null ? void 0 : e.attributes.media_album_name) || (e == null ? void 0 : e.attributes.source) || ((a = this.activeMemory) == null ? void 0 : a.artist) || ""
     ), i = this.artworkUrl;
-    return d`
+    return u`
       <div class="queue-current">
         <div class="queue-current-art" style=${i ? `background-image: url("${i}")` : ""}>
-          ${i ? p : d`<ha-icon .icon=${"mdi:music-note"}></ha-icon>`}
+          ${i ? p : u`<ha-icon .icon=${"mdi:music-note"}></ha-icon>`}
         </div>
         <span class="queue-current-meta">
           <span class="queue-now-label">Now playing</span>
@@ -3471,7 +3477,7 @@ const te = class te extends S {
     `;
   }
   renderSearch() {
-    return this.config.show_search ? d`
+    return this.config.show_search ? u`
       <section class="search">
         <span class="section-title">Browse Music Assistant</span>
         <div class="search-row">
@@ -3496,10 +3502,10 @@ const te = class te extends S {
           </button>
         </div>
         ${this.renderFavorites()}
-        ${this.searchError ? d`<div class="error">${this.searchError}</div>` : p}
-        ${this.searching ? d`<div class="hint">Searching...</div>` : p}
+        ${this.searchError ? u`<div class="error">${this.searchError}</div>` : p}
+        ${this.searching ? u`<div class="hint">Searching...</div>` : p}
         ${this.searchResults.length > 0 ? this.browserView === "artist" ? this.renderArtistView() : this.browserView === "album" ? this.renderAlbumView() : this.browserView === "playlist" ? this.renderPlaylistView() : this.renderResults() : p}
-        ${this.config.show_queue_hint ? d`<div class="hint">Tap a result to play it now, or use Next to add it to Up Next.</div>` : p}
+        ${this.config.show_queue_hint ? u`<div class="hint">Tap a result to play it now, or use Next to add it to Up Next.</div>` : p}
       </section>
     ` : p;
   }
@@ -3507,7 +3513,7 @@ const te = class te extends S {
     return this.searchResults.filter((t) => (t.media_type || t.type) === e);
   }
   renderFavorites() {
-    return this.favoriteItems.length === 0 ? p : d`
+    return this.favoriteItems.length === 0 ? p : u`
       <section class="favorites">
         <span class="section-header">Favorites</span>
         ${this.favoriteItems.map((e) => {
@@ -3520,17 +3526,17 @@ const te = class te extends S {
   renderResultSection(e, t, s = "play", i = !0, r = "search") {
     if (t.length === 0)
       return p;
-    const a = i ? t.slice(0, v(this.config.search_limit, f.search_limit)) : t;
-    return d`
+    const a = i ? t.slice(0, x(this.config.search_limit, v.search_limit)) : t;
+    return u`
       <section class="result-section">
         <span class="section-header">${e}</span>
-        ${a.map((o) => this.renderResultItem(o, s, r))}
+        ${a.map((n) => this.renderResultItem(n, s, r))}
       </section>
     `;
   }
   renderArtistView() {
     const e = this.selectedArtist, t = (e == null ? void 0 : e.image) || (e == null ? void 0 : e.thumb) || "", s = (e == null ? void 0 : e.name) ?? this.query;
-    return d`
+    return u`
       <div class="results">
         <div class="artist-header">
           <div
@@ -3555,7 +3561,7 @@ const te = class te extends S {
   }
   renderAlbumView() {
     const e = this.selectedAlbum, t = (e == null ? void 0 : e.image) || (e == null ? void 0 : e.thumb) || "", s = (e == null ? void 0 : e.name) ?? this.query, i = this.albumTracks.length > 0 ? this.albumTracks : this.itemsByType("track").filter((r) => !s || this.itemAlbum(r).toLowerCase() === s.toLowerCase());
-    return d`
+    return u`
       <div class="results">
         <div class="artist-header">
           <div
@@ -3566,7 +3572,7 @@ const te = class te extends S {
             <span class="result-name">${s}</span>
             <span class="result-sub">Album</span>
           </div>
-          ${e ? d`
+          ${e ? u`
                 <button
                   class="small-action"
                   ?disabled=${this.playbackPending}
@@ -3581,15 +3587,15 @@ const te = class te extends S {
             Back
           </button>
         </div>
-        ${this.albumLoading ? d`<div class="hint">Loading album tracks...</div>` : p}
-        ${this.albumError ? d`<div class="error">${this.albumError}</div>` : p}
+        ${this.albumLoading ? u`<div class="hint">Loading album tracks...</div>` : p}
+        ${this.albumError ? u`<div class="error">${this.albumError}</div>` : p}
         ${this.renderResultSection("Songs", i, "play", !1, "album")}
       </div>
     `;
   }
   renderPlaylistView() {
     const e = this.selectedPlaylist, t = (e == null ? void 0 : e.image) || (e == null ? void 0 : e.thumb) || "", s = (e == null ? void 0 : e.name) ?? this.query;
-    return d`
+    return u`
       <div class="results">
         <div class="artist-header">
           <div
@@ -3600,7 +3606,7 @@ const te = class te extends S {
             <span class="result-name">${s}</span>
             <span class="result-sub">Playlist</span>
           </div>
-          ${e ? d`
+          ${e ? u`
                 <button
                   class="small-action"
                   ?disabled=${this.playbackPending}
@@ -3615,14 +3621,14 @@ const te = class te extends S {
             Back
           </button>
         </div>
-        ${this.playlistLoading ? d`<div class="hint">Loading playlist tracks...</div>` : p}
-        ${this.playlistError ? d`<div class="error">${this.playlistError}</div>` : p}
+        ${this.playlistLoading ? u`<div class="hint">Loading playlist tracks...</div>` : p}
+        ${this.playlistError ? u`<div class="error">${this.playlistError}</div>` : p}
         ${this.renderResultSection("Songs", this.playlistTracks, "play", !1, "playlist")}
       </div>
     `;
   }
   renderSpeakers() {
-    return d`
+    return u`
       <section class="speakers">
         ${this.renderCurrentGroup()}
         ${this.renderGrouping()}
@@ -3635,11 +3641,11 @@ const te = class te extends S {
           <span>Speaker Volumes</span>
           <ha-icon .icon=${this.showVolumeMixer ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
         </button>
-        ${this.showVolumeMixer ? d`
+        ${this.showVolumeMixer ? u`
               <div class="speaker-list">
                 ${this.allPlayers.map((e) => {
-      const t = b(e), s = Math.round(v(e.attributes.volume_level, 0) * 100), i = this.volumeOverrides.get(e.entity_id) ?? s;
-      return d`
+      const t = y(e), s = Math.round(x(e.attributes.volume_level, 0) * 100), i = this.volumeOverrides.get(e.entity_id) ?? s;
+      return u`
                     <div class="speaker-row">
                       <span class="speaker-name">
                         ${e.attributes.friendly_name ?? w(e.entity_id.split(".")[1])}
@@ -3677,7 +3683,7 @@ const te = class te extends S {
     `;
   }
   renderResults() {
-    return d`
+    return u`
       <div class="results">
         ${this.renderResultSection("Artists", this.itemsByType("artist"), "artist")}
         ${this.renderResultSection("Albums", this.itemsByType("album"), "album")}
@@ -3689,10 +3695,10 @@ const te = class te extends S {
     `;
   }
   renderResultItem(e, t = "play", s = "search") {
-    var u, l, h;
-    const i = e.artist || ((u = e.artists) == null ? void 0 : u.map((m) => m.name).filter(Boolean).join(", ")) || ((l = e.album) == null ? void 0 : l.name) || e.media_type || e.type || "", r = e.image || e.thumb || ((h = e.album) == null ? void 0 : h.image) || "", a = this.isFavorite(e), o = () => this.playSearchResult(e, "play");
-    return d`
-      <div class="result clickable" @click=${t === "artist" ? () => this.openArtist(e) : t === "album" ? () => this.openAlbum(e) : t === "playlist" ? () => this.openPlaylist(e) : o}>
+    var d, l, h;
+    const i = e.artist || ((d = e.artists) == null ? void 0 : d.map((m) => m.name).filter(Boolean).join(", ")) || ((l = e.album) == null ? void 0 : l.name) || e.media_type || e.type || "", r = e.image || e.thumb || ((h = e.album) == null ? void 0 : h.image) || "", a = this.isFavorite(e), n = () => this.playSearchResult(e, "play");
+    return u`
+      <div class="result clickable" @click=${t === "artist" ? () => this.openArtist(e) : t === "album" ? () => this.openAlbum(e) : t === "playlist" ? () => this.openPlaylist(e) : n}>
         <div
           class="result-art"
           style=${r ? `background-image: url("${r}")` : ""}
@@ -3711,12 +3717,12 @@ const te = class te extends S {
           >
             <ha-icon .icon=${a ? "mdi:star" : "mdi:star-outline"}></ha-icon>
           </button>
-          ${t === "artist" || t === "album" || t === "playlist" ? p : d`
+          ${t === "artist" || t === "album" || t === "playlist" ? p : u`
                 <button
                   class="now"
                   ?disabled=${this.playbackPending}
                   @click=${(m) => {
-      m.stopPropagation(), o();
+      m.stopPropagation(), n();
     }}
                 >
                   Now
@@ -3735,9 +3741,9 @@ const te = class te extends S {
     `;
   }
   renderQueueItem(e, t = 0, s = !1) {
-    var o, c, u;
-    const i = e.artist || ((o = e.artists) == null ? void 0 : o.map((l) => l.name).filter(Boolean).join(", ")) || ((c = e.album) == null ? void 0 : c.name) || e.media_type || e.type || "", r = e.image || e.thumb || ((u = e.album) == null ? void 0 : u.image) || "", a = e.name ?? e.uri ?? "Untitled";
-    return d`
+    var n, c, d;
+    const i = e.artist || ((n = e.artists) == null ? void 0 : n.map((l) => l.name).filter(Boolean).join(", ")) || ((c = e.album) == null ? void 0 : c.name) || e.media_type || e.type || "", r = e.image || e.thumb || ((d = e.album) == null ? void 0 : d.image) || "", a = e.name ?? e.uri ?? "Untitled";
+    return u`
       <button
         class="queue-item ${s ? "compact" : ""}"
         type="button"
@@ -3747,7 +3753,7 @@ const te = class te extends S {
       >
         <span class="queue-position">${t + 1}</span>
         <span class="queue-item-art" style=${r ? `background-image: url("${r}")` : ""}>
-          ${r ? p : d`<ha-icon .icon=${"mdi:music-note"}></ha-icon>`}
+          ${r ? p : u`<ha-icon .icon=${"mdi:music-note"}></ha-icon>`}
         </span>
         <span class="queue-item-meta">
           <span class="queue-item-title">${a}</span>
@@ -3762,9 +3768,9 @@ const te = class te extends S {
   render() {
     var c;
     if (!this.config)
-      return d``;
-    const e = this.playbackPlayer, t = this.activePlayer, s = this.activeMemory, i = b(t), r = this.artworkUrl ? `url("${this.artworkUrl}")` : "none", a = (e == null ? void 0 : e.attributes.media_title) || (s == null ? void 0 : s.title) || "No music selected", o = (e == null ? void 0 : e.attributes.media_artist) || (e == null ? void 0 : e.attributes.media_album_name) || (e == null ? void 0 : e.attributes.source) || (s == null ? void 0 : s.artist) || "Ready";
-    return d`
+      return u``;
+    const e = this.playbackPlayer, t = this.activePlayer, s = this.activeMemory, i = y(t), r = this.artworkUrl ? `url("${this.artworkUrl}")` : "none", a = (e == null ? void 0 : e.attributes.media_title) || (s == null ? void 0 : s.title) || "No music selected", n = (e == null ? void 0 : e.attributes.media_artist) || (e == null ? void 0 : e.attributes.media_album_name) || (e == null ? void 0 : e.attributes.source) || (s == null ? void 0 : s.artist) || "Ready";
+    return u`
       <ha-card>
         <div
           class="player ${this.config.compact ? "compact" : ""} ${this.isPlaying ? "playing" : ""} ${this.playbackPending || this.transportPending ? "pending" : ""} ${this.activeTab === "now" ? "now-active" : ""}"
@@ -3778,7 +3784,7 @@ const te = class te extends S {
             ${this.renderTopControls(i, e)}
           </div>
           ${this.renderRooms()}
-          ${this.renderMiniPlayer(a, o, i)}
+          ${this.renderMiniPlayer(a, n, i)}
           <div class="volume-row">
             <button class="icon-button" aria-label="Mute speaker" ?disabled=${i} @click=${this.toggleMute}>
               <ha-icon .icon=${(c = this.isPlaying ? this.playbackPlayer : this.activePlayer) != null && c.attributes.is_volume_muted ? "mdi:volume-off" : "mdi:volume-high"}></ha-icon>
@@ -3790,23 +3796,23 @@ const te = class te extends S {
               .value=${String(this.volume)}
               ?disabled=${i}
               aria-label="Speaker volume"
-              @input=${(u) => {
-      const l = this.updateVolumeLabel(u);
+              @input=${(d) => {
+      const l = this.updateVolumeLabel(d);
       this.setPlayerVolume(this.volumeEntityId, l);
     }}
-              @change=${(u) => this.setVolume(this.updateVolumeLabel(u))}
+              @change=${(d) => this.setVolume(this.updateVolumeLabel(d))}
             />
             <span class="state">${this.volume}%</span>
           </div>
-          ${this.playbackError ? d`<div class="error" role="alert">${this.playbackError}</div>` : p}
+          ${this.playbackError ? u`<div class="error" role="alert">${this.playbackError}</div>` : p}
           ${this.renderTabs()}
-          ${this.activeTab === "now" ? this.renderNowPlaying(a, o, i) : this.activeTab === "search" ? this.renderSearch() : this.activeTab === "queue" ? this.renderQueue() : this.renderSpeakers()}
+          ${this.activeTab === "now" ? this.renderNowPlaying(a, n, i) : this.activeTab === "search" ? this.renderSearch() : this.activeTab === "queue" ? this.renderQueue() : this.renderSpeakers()}
         </div>
       </ha-card>
     `;
   }
 };
-te.properties = {
+se.properties = {
   hass: { attribute: !1 },
   config: { state: !0 },
   selectedEntityId: { state: !0 },
@@ -3840,14 +3846,14 @@ te.properties = {
   transportPending: { state: !0 },
   favoriteItems: { state: !0 }
 };
-let Y = te;
-customElements.get("gamma-sonos-player-card") || customElements.define("gamma-sonos-player-card", Y);
-const se = class se extends S {
+let J = se;
+customElements.get("gamma-sonos-player-card") || customElements.define("gamma-sonos-player-card", J);
+const ie = class ie extends q {
   constructor() {
     super(...arguments), this.config = {};
   }
   static get styles() {
-    return fe`
+    return ve`
       .editor {
         display: grid;
         gap: 14px;
@@ -3909,7 +3915,7 @@ const se = class se extends S {
     });
   }
   renderEntityPicker(e, t, s = !1) {
-    return d`
+    return u`
       <ha-selector
         .hass=${this.hass}
         .label=${e}
@@ -3921,7 +3927,7 @@ const se = class se extends S {
     `;
   }
   renderTextInput(e, t, s = "") {
-    return d`
+    return u`
       <ha-textfield
         .label=${e}
         .placeholder=${s}
@@ -3932,7 +3938,7 @@ const se = class se extends S {
     `;
   }
   renderNumberInput(e, t, s = "") {
-    return d`
+    return u`
       <ha-textfield
         type="number"
         .label=${e}
@@ -3944,7 +3950,7 @@ const se = class se extends S {
     `;
   }
   renderSwitch(e, t, s) {
-    return d`
+    return u`
       <label class="switch-row">
         <ha-switch
           .checked=${!!(this.config[t] ?? s)}
@@ -3956,7 +3962,7 @@ const se = class se extends S {
     `;
   }
   renderSelect(e, t, s, i) {
-    return d`
+    return u`
       <ha-select
         .label=${e}
         .value=${this.config[t] ?? i}
@@ -3967,7 +3973,7 @@ const se = class se extends S {
         naturalMenuWidth
       >
         ${s.map(
-      (r) => d`
+      (r) => u`
             <mwc-list-item .value=${r}>${r}</mwc-list-item>
           `
     )}
@@ -3975,7 +3981,7 @@ const se = class se extends S {
     `;
   }
   render() {
-    return d`
+    return u`
       <div class="editor">
         <section class="section">
           <h3>Main</h3>
@@ -4012,12 +4018,12 @@ const se = class se extends S {
     `;
   }
 };
-se.properties = {
+ie.properties = {
   hass: { attribute: !1 },
   config: { state: !0 }
 };
-let J = se;
-customElements.get("gamma-sonos-player-card-editor") || customElements.define("gamma-sonos-player-card-editor", J);
+let Z = ie;
+customElements.get("gamma-sonos-player-card-editor") || customElements.define("gamma-sonos-player-card-editor", Z);
 window.customCards = window.customCards || [];
 window.customCards.push({
   preview: !0,
