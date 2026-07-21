@@ -199,6 +199,10 @@ function isMusicAssistantPlayer(entity?: HassEntity): boolean {
   );
 }
 
+function isNativeSonosPlayer(entity?: HassEntity): boolean {
+  return !isMusicAssistantPlayer(entity) && Array.isArray(entity?.attributes.group_members);
+}
+
 function titleCase(value: string): string {
   return value
     .replace(/_/g, ' ')
@@ -2280,11 +2284,17 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get groupablePlayers(): HassEntity[] {
-    const activeIsMusicAssistant = isMusicAssistantPlayer(this.activePlayer);
+    const activePlayer = this.activePlayer;
+    const activeIsMusicAssistant = isMusicAssistantPlayer(activePlayer);
+    const activeIsNativeSonos = isNativeSonosPlayer(activePlayer);
     const seen = new Set<string>();
 
     return this.allPlayers.filter((player) => {
       if (isUnavailable(player)) {
+        return false;
+      }
+
+      if (isNativeSonosPlayer(player) !== activeIsNativeSonos) {
         return false;
       }
 
@@ -2350,6 +2360,17 @@ export class GammaSonosPlayerCard extends LitElement {
     selectedPlayers: HassEntity[],
   ): { anchor: HassEntity; members: HassEntity[]; error?: string } {
     const requestedPlayers = [anchor, ...selectedPlayers];
+    const hasNativeSonos = requestedPlayers.some((player) => isNativeSonosPlayer(player));
+    const hasNonSonos = requestedPlayers.some((player) => !isNativeSonosPlayer(player));
+
+    if (hasNativeSonos && hasNonSonos) {
+      return {
+        anchor,
+        members: [],
+        error: 'Sonos speakers can only be grouped with other Sonos speakers.',
+      };
+    }
+
     const hasMusicAssistant = requestedPlayers.some((player) => isMusicAssistantPlayer(player));
     const hasNative = requestedPlayers.some((player) => !isMusicAssistantPlayer(player));
 
