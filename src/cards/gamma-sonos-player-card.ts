@@ -1935,34 +1935,9 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get activePlayer(): HassEntity | undefined {
-    const configuredEntityIds = this.config.entities?.length
-      ? this.config.entities
-      : (this.config.music_assistant_entities ?? []);
-    const selected = configuredEntityIds.includes(this.selectedEntityId)
-      ? this.hass?.states[this.selectedEntityId]
-      : undefined;
+    const selected = this.hass?.states[this.selectedEntityId];
 
-    if (selected) {
-      return selected;
-    }
-
-    // Older card releases stored the internal Music Assistant entity after
-    // playback. Resolve that stale value back to the configured room player so
-    // the selector never jumps to a hidden transport entity.
-    const storedPlayer = this.hass?.states[this.selectedEntityId];
-    const storedRoomName = storedPlayer
-      ? this.normalizedRoomName(String(storedPlayer.attributes.friendly_name ?? storedPlayer.entity_id))
-      : '';
-    const selectedRoom = storedRoomName
-      ? configuredEntityIds
-        .map((entityId) => this.hass?.states[entityId])
-        .find((player): player is HassEntity => Boolean(
-          player &&
-          this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id)) === storedRoomName
-        ))
-      : undefined;
-
-    return selectedRoom ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
+    return selected ?? this.currentlyPlayingPlayer ?? this.allPlayers[0];
   }
 
   private get activeEntityId(): string {
