@@ -3,7 +3,7 @@ import type { CSSResultGroup, TemplateResult } from 'lit';
 
 type EnqueueMode = 'replace' | 'replace_next' | 'play' | 'next' | 'add';
 type MediaType = 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
-type PanelTab = 'now' | 'search' | 'queue' | 'speakers';
+type PanelTab = 'now' | 'search' | 'queue' | 'speakers' | 'party';
 type BrowserView = 'results' | 'artist' | 'album' | 'playlist';
 type ResultAction = 'artist' | 'album' | 'playlist' | 'play';
 type ResultContext = 'search' | 'artist' | 'album' | 'playlist' | 'favorites';
@@ -68,6 +68,11 @@ interface GammaSonosPlayerConfig {
   search_media_types?: MediaType[];
   show_grouping?: boolean;
   show_search?: boolean;
+  show_party?: boolean;
+  party_start_service?: string;
+  party_stop_service?: string;
+  party_dashboard_url?: string;
+  party_screen_name?: string;
   show_queue_hint?: boolean;
   background?: string;
   accent_color?: string;
@@ -130,6 +135,7 @@ const DEFAULT_CONFIG: Required<
     | 'library_only'
     | 'show_grouping'
     | 'show_search'
+    | 'show_party'
     | 'show_queue_hint'
     | 'background'
     | 'accent_color'
@@ -144,6 +150,7 @@ const DEFAULT_CONFIG: Required<
   library_only: false,
   show_grouping: true,
   show_search: true,
+  show_party: true,
   show_queue_hint: true,
   background: '#101722',
   accent_color: '#39d98a',
@@ -159,6 +166,10 @@ const SEARCH_CACHE_TTL_MS = 2 * 60_000;
 const BROWSE_CACHE_TTL_MS = 5 * 60_000;
 const MAX_CACHE_ENTRIES = 30;
 const PLAYBACK_SLOW_MS = 15_000;
+const DEFAULT_PARTY_START_SERVICE = 'rest_command.party_screen_start';
+const DEFAULT_PARTY_STOP_SERVICE = 'rest_command.party_screen_stop';
+const DEFAULT_PARTY_DASHBOARD_URL = 'https://music.anieflix.com/#/party';
+const DEFAULT_PARTY_SCREEN_NAME = 'Lanai AppleTV';
 
 type CachedItems = {
   expiresAt: number;
@@ -278,6 +289,9 @@ export class GammaSonosPlayerCard extends LitElement {
     transportPending: { state: true },
     favoriteItems: { state: true },
     transferTargetEntityId: { state: true },
+    partyPending: { state: true },
+    partyStatus: { state: true },
+    partyError: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -317,6 +331,9 @@ export class GammaSonosPlayerCard extends LitElement {
   private transportPending = false;
   private favoriteItems: SearchItem[] = [];
   private transferTargetEntityId = '';
+  private partyPending = false;
+  private partyStatus = '';
+  private partyError = '';
   private initialTabResolved = false;
   private lastPlaybackRequest?: PlaybackRequest;
   private playbackFeedbackTimer?: number;
@@ -1098,15 +1115,108 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .tabs {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
       }
 
       .grouping,
       .search,
       .speakers,
-      .queue {
+      .queue,
+      .party {
         display: grid;
         gap: 8px;
+      }
+
+      .party-hero {
+        background:
+          radial-gradient(circle at 85% 10%, color-mix(in srgb, var(--gamma-sonos-accent) 28%, transparent), transparent 46%),
+          rgb(255 255 255 / 5%);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 28%, rgb(255 255 255 / 8%));
+        border-radius: 16px;
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+      }
+
+      .party-heading {
+        align-items: center;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .party-icon {
+        align-items: center;
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 22%, transparent);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 35%, transparent);
+        border-radius: 14px;
+        display: inline-flex;
+        height: 48px;
+        justify-content: center;
+        width: 48px;
+      }
+
+      .party-icon ha-icon {
+        --mdc-icon-size: 27px;
+      }
+
+      .party-copy {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .party-title {
+        font-size: 18px;
+        font-weight: 850;
+      }
+
+      .party-target,
+      .party-description {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .party-actions {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+      }
+
+      .party-action {
+        align-items: center;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 13px;
+        color: var(--primary-text-color, #f4f7fb);
+        display: inline-flex;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        gap: 8px;
+        justify-content: center;
+        min-height: 46px;
+        padding: 0 12px;
+      }
+
+      .party-action.start {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 25%, transparent);
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 42%, transparent);
+      }
+
+      .party-action.stop {
+        border-color: rgb(255 143 133 / 25%);
+      }
+
+      .party-feedback {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 11%, transparent);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 22%, transparent);
+        border-radius: 11px;
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 9px 11px;
       }
 
       .tab-content {
@@ -4344,6 +4454,18 @@ export class GammaSonosPlayerCard extends LitElement {
         >
           Speakers
         </button>
+        ${this.config.show_party
+          ? html`
+              <button
+                class=${this.activeTab === 'party' ? 'active' : ''}
+                @click=${() => {
+                  this.activeTab = 'party';
+                }}
+              >
+                Party
+              </button>
+            `
+          : nothing}
       </div>
     `;
   }
@@ -4811,6 +4933,104 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
+  private configuredService(value: string | undefined, fallback: string): [string, string] {
+    const configured = (value || fallback).trim();
+    const separator = configured.indexOf('.');
+    if (separator <= 0 || separator === configured.length - 1) {
+      throw new Error(`Invalid Home Assistant action: ${configured}`);
+    }
+    return [configured.slice(0, separator), configured.slice(separator + 1)];
+  }
+
+  private runPartyAction(action: 'start' | 'stop'): void {
+    if (this.partyPending) {
+      return;
+    }
+
+    this.partyPending = true;
+    this.partyError = '';
+    this.partyStatus = action === 'start'
+      ? 'Connecting the Party screen...'
+      : 'Stopping the Party screen...';
+
+    try {
+      const configured = action === 'start'
+        ? this.config.party_start_service
+        : this.config.party_stop_service;
+      const fallback = action === 'start'
+        ? DEFAULT_PARTY_START_SERVICE
+        : DEFAULT_PARTY_STOP_SERVICE;
+      const [domain, service] = this.configuredService(configured, fallback);
+
+      void this.service(domain, service)
+        .then(() => {
+          this.partyStatus = action === 'start'
+            ? `Party screen sent to ${this.config.party_screen_name || DEFAULT_PARTY_SCREEN_NAME}.`
+            : 'Party screen stopped.';
+        })
+        .catch((error: unknown) => {
+          this.partyError = this.errorMessage(error, `Could not ${action} the Party screen.`);
+          this.partyStatus = '';
+        })
+        .finally(() => {
+          this.partyPending = false;
+        });
+    } catch (error) {
+      this.partyError = this.errorMessage(error, `Could not ${action} the Party screen.`);
+      this.partyStatus = '';
+      this.partyPending = false;
+    }
+  }
+
+  private openPartyDashboard(): void {
+    const url = this.config.party_dashboard_url || DEFAULT_PARTY_DASHBOARD_URL;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  private renderParty(): TemplateResult {
+    const target = this.config.party_screen_name || DEFAULT_PARTY_SCREEN_NAME;
+    return html`
+      <section class="party">
+        <div class="party-hero">
+          <div class="party-heading">
+            <span class="party-icon"><ha-icon .icon=${'mdi:party-popper'}></ha-icon></span>
+            <span class="party-copy">
+              <span class="party-title">Party on TV</span>
+              <span class="party-target">Screen: ${target}</span>
+            </span>
+          </div>
+          <span class="party-description">
+            Show Music Assistant's live Party queue and guest QR code on the TV. This does not start or change the music.
+          </span>
+          <div class="party-actions">
+            <button
+              class="party-action start"
+              ?disabled=${this.partyPending}
+              @click=${() => this.runPartyAction('start')}
+            >
+              <ha-icon .icon=${this.partyPending ? 'mdi:loading' : 'mdi:television-play'}></ha-icon>
+              ${this.partyPending ? 'Connecting...' : 'Show on TV'}
+            </button>
+            <button
+              class="party-action stop"
+              ?disabled=${this.partyPending}
+              @click=${() => this.runPartyAction('stop')}
+            >
+              <ha-icon .icon=${'mdi:stop-circle-outline'}></ha-icon>
+              Stop TV Screen
+            </button>
+            <button class="party-action" @click=${this.openPartyDashboard}>
+              <ha-icon .icon=${'mdi:open-in-new'}></ha-icon>
+              Open Dashboard
+            </button>
+          </div>
+          ${this.partyStatus ? html`<div class="party-feedback">${this.partyStatus}</div>` : nothing}
+          ${this.partyError ? html`<div class="error">${this.partyError}</div>` : nothing}
+        </div>
+      </section>
+    `;
+  }
+
   private renderSpeakers(): TemplateResult {
     return html`
       <section class="speakers">
@@ -5062,7 +5282,9 @@ export class GammaSonosPlayerCard extends LitElement {
                 ? this.renderSearch()
                 : this.activeTab === 'queue'
                   ? this.renderQueue()
-                  : this.renderSpeakers()}
+                  : this.activeTab === 'party'
+                    ? this.renderParty()
+                    : this.renderSpeakers()}
           </div>
         </div>
       </ha-card>
@@ -5410,7 +5632,34 @@ class GammaSonosPlayerCardEditor extends LitElement {
             ${this.renderSwitch('Compact Layout', 'compact', false)}
             ${this.renderSwitch('Show Search', 'show_search', true)}
             ${this.renderSwitch('Show Grouping', 'show_grouping', true)}
+            ${this.renderSwitch('Show Party', 'show_party', true)}
             ${this.renderSwitch('Library Only', 'library_only', false)}
+          </div>
+        </section>
+
+        <section class="section">
+          <h3>Party Screen</h3>
+          <div class="grid">
+            ${this.renderTextInput(
+              'Start Action',
+              'party_start_service',
+              DEFAULT_PARTY_START_SERVICE,
+            )}
+            ${this.renderTextInput(
+              'Stop Action',
+              'party_stop_service',
+              DEFAULT_PARTY_STOP_SERVICE,
+            )}
+            ${this.renderTextInput(
+              'Party Dashboard URL',
+              'party_dashboard_url',
+              DEFAULT_PARTY_DASHBOARD_URL,
+            )}
+            ${this.renderTextInput(
+              'TV Name',
+              'party_screen_name',
+              DEFAULT_PARTY_SCREEN_NAME,
+            )}
           </div>
         </section>
       </div>

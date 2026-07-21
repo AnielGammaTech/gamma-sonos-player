@@ -1,0 +1,15 @@
+services:
+  party-screen-bridge:
+    build: .
+    container_name: party-screen-bridge
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      MA_PARTY_URL: http://192.168.1.54:8095/#/party
+      PUBLIC_HLS_URL: http://192.168.1.54:8099/hls/party.m3u8
+      APPLE_TV_ADDRESS: 172.16.17.28
+      APPLE_TV_NAME: Lanai AppleTV
+      APPLE_TV_IDENTIFIER: 9C:3E:53:2E:DF:B0
+      APPLE_TV_PI: 85a33e55-dde1-409a-8594-048d1b1b4afc
+    volumes:
+      - /opt/party-screen:/state

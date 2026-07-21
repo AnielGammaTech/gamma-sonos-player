@@ -9,7 +9,7 @@ This repo is a Home Assistant Lovelace custom card focused on Music Assistant se
 - Music search should use Music Assistant only. Spotify is assumed to be connected as a Music Assistant provider, not as a separate UI tab.
 - Speakers are controlled through Home Assistant media player services. The Speakers panel should make grouping explicit: select speakers, then apply grouping.
 - Per-speaker volume should be in a collapsed mixer by default so grouping stays readable.
-- Party mode is deferred for now; keep the main card focused on reliable now-playing, search, and grouping.
+- Party mode is an optional separate panel backed by Music Assistant's Party plugin and an external screen bridge. It must never start or change music by itself.
 - Avoid making the card a clone of existing Sonos cards. Use other projects only as behavioral references.
 
 ## Enhancement Backlog
@@ -17,7 +17,7 @@ This repo is a Home Assistant Lovelace custom card focused on Music Assistant se
 - Smarter grouping: separate native Sonos and Music Assistant groups visually, auto-pick the MA version for mixed rooms, and label speaker compatibility.
 - Better browsing: artist pages should show top songs, albums, and playlists; album pages should support play album, shuffle, and play from a track.
 - Queue panel: use Music Assistant Queue Actions to show, reorder, remove, clear, play next, and jump to queue items.
-- Deferred party mode: later, make a separate Party panel around the MA Party plugin QR/dashboard and add a one-tap party start flow for selected rooms.
+- Party screen follow-up: support choosing among multiple configured TV targets and expose live bridge health in Home Assistant.
 - Now playing polish: larger responsive artwork, cleaner button states/icons, progress bar, elapsed/remaining time, and current source.
 - Performance: debounce search, cache artist/album results, render volume rows only when expanded, and avoid unnecessary recalculation on HA updates.
 - Configuration presets: Music Assistant mode, Sonos native mode, and mixed home mode.
@@ -162,6 +162,15 @@ Artwork should reflect the currently selected/playing media. The card checks, in
 3. `media_image_url`
 
 Do not remove `entity_picture_local`; Music Assistant often uses it.
+
+## Party Screen
+
+The Party panel calls configurable Home Assistant actions, defaulting to:
+
+- `rest_command.party_screen_start`
+- `rest_command.party_screen_stop`
+
+The local `party-screen-bridge` container renders Music Assistant's `#/party` view and sends that visual to a paired Apple TV. AirPlay credentials and the Music Assistant browser token live only in the container's root-only state volume. Never embed credentials in the card bundle, Lovelace config, repository, or logs.
 
 ## Scaling And Dashboard Layout
 

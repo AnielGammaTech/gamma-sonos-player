@@ -268,6 +268,11 @@
         entities: ['media_player.lanai', 'media_player.kitchen', 'media_player.bedroom'],
         music_assistant_entities: ['media_player.ma_lanai'],
         music_assistant_config_entry_id: 'demo-music-assistant',
+        show_party: true,
+        party_start_service: 'rest_command.party_screen_start',
+        party_stop_service: 'rest_command.party_screen_stop',
+        party_dashboard_url: 'https://music.example.com/#/party',
+        party_screen_name: 'Living Room Apple TV',
         entity: 'media_player.lanai',
         enqueue_mode: 'next',
       });
