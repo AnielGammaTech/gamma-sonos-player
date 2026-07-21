@@ -1891,11 +1891,14 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get allPlayers(): HassEntity[] {
-    const configured = [
-      ...(this.config.entities ?? []),
-      ...(this.config.music_assistant_entities ?? []),
-    ];
-    const playerConfigKey = `${this.selectedEntityId}\u0001${configured.join('\u0000')}`;
+    const configured = this.config.entities?.length
+      ? this.config.entities
+      : (this.config.music_assistant_entities ?? []);
+    const playerConfigKey = [
+      this.selectedEntityId,
+      configured.join('\u0000'),
+      (this.config.music_assistant_entities ?? []).join('\u0000'),
+    ].join('\u0001');
 
     // Reading mediaPlayers refreshes both caches when Home Assistant replaces its state map.
     void this.mediaPlayers;
@@ -1907,14 +1910,9 @@ export class GammaSonosPlayerCard extends LitElement {
     let players: HassEntity[];
 
     if (configured.length > 0) {
-      const configuredPlayers = configured
+      players = this.dedupePlayers(configured
         .map((entityId) => this.hass?.states[entityId])
-        .filter((entity): entity is HassEntity => Boolean(entity));
-      const musicAssistantMatches = configuredPlayers
-        .map((player) => this.matchingMusicAssistantPlayer(player))
-        .filter((player): player is HassEntity => Boolean(player));
-
-      players = this.dedupeRoomPlayers(this.dedupePlayers([...configuredPlayers, ...musicAssistantMatches]));
+        .filter((entity): entity is HassEntity => Boolean(entity)));
     } else {
       players = this.dedupeRoomPlayers(this.cachedMediaPlayers.filter((entity) => this.isDiscoverablePlayer(entity)));
     }
@@ -2286,6 +2284,10 @@ export class GammaSonosPlayerCard extends LitElement {
     const seen = new Set<string>();
 
     return this.allPlayers.filter((player) => {
+      if (isUnavailable(player)) {
+        return false;
+      }
+
       const musicAssistantMatch = this.matchingMusicAssistantPlayer(player);
       const canGroup =
         supportsGrouping(player) ||
@@ -2313,7 +2315,10 @@ export class GammaSonosPlayerCard extends LitElement {
     const isConfiguredMusicAssistantPlayer = (player: HassEntity): boolean =>
       configuredMusicAssistantIds.has(player.entity_id);
 
-    if (isMusicAssistantPlayer(entity) || isConfiguredMusicAssistantPlayer(entity)) {
+    if (
+      !isUnavailable(entity) &&
+      (isMusicAssistantPlayer(entity) || isConfiguredMusicAssistantPlayer(entity))
+    ) {
       return entity;
     }
 
@@ -2328,10 +2333,12 @@ export class GammaSonosPlayerCard extends LitElement {
 
     return (
       this.mediaPlayers.find((player) => (
+        !isUnavailable(player) &&
         likelyEntityIds.includes(player.entity_id) &&
         (isMusicAssistantPlayer(player) || isConfiguredMusicAssistantPlayer(player))
       )) ??
       this.mediaPlayers.find((player) => (
+        !isUnavailable(player) &&
         (isMusicAssistantPlayer(player) || isConfiguredMusicAssistantPlayer(player)) &&
         this.normalizedRoomName(String(player.attributes.friendly_name ?? player.entity_id)) === friendlyName
       ))
@@ -2360,6 +2367,18 @@ export class GammaSonosPlayerCard extends LitElement {
         anchor,
         members: [],
         error: `Use the Music Assistant version of ${anchor.attributes.friendly_name ?? anchor.entity_id} as the main speaker for mixed groups.`,
+      };
+    }
+
+    if (resolvedMembers.length !== selectedPlayers.length) {
+      const unavailableRooms = selectedPlayers
+        .filter((player) => !this.matchingMusicAssistantPlayer(player))
+        .map((player) => player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1]));
+
+      return {
+        anchor: resolvedAnchor,
+        members: [],
+        error: `Music Assistant is unavailable for ${unavailableRooms.join(', ')}. Choose speakers from the same system instead.`,
       };
     }
 
@@ -2617,19 +2636,27 @@ export class GammaSonosPlayerCard extends LitElement {
       return;
     }
 
+    const previousSelectedEntityId = this.selectedEntityId;
+    const previousSelectedGroupIds = [...this.selectedGroupIds];
+    const previousPendingGroupIds = [...this.pendingGroupIds];
+    const visibleAnchorEntityId = this.activeEntityId;
+    const visibleMemberIds = selectedPlayers.map((player) => player.entity_id);
+
     this.groupPending = true;
+    this.selectedGroupIds = [visibleAnchorEntityId, ...visibleMemberIds];
+    this.pendingGroupIds = [];
     void this.service('media_player', 'join', {
       group_members: groupMembers,
     }, {
       entity_id: resolved.anchor.entity_id,
     })
       .then(() => {
-        this.selectedEntityId = resolved.anchor.entity_id;
-        this.selectedGroupIds = [resolved.anchor.entity_id, ...groupMembers];
-        this.pendingGroupIds = [];
-        this.writeStorage(LAST_PLAYER_STORAGE_KEY, resolved.anchor.entity_id);
+        this.writeStorage(LAST_PLAYER_STORAGE_KEY, visibleAnchorEntityId);
       })
       .catch((error: unknown) => {
+        this.selectedEntityId = previousSelectedEntityId;
+        this.selectedGroupIds = previousSelectedGroupIds;
+        this.pendingGroupIds = previousPendingGroupIds;
         this.groupError = this.errorMessage(error, 'Grouping failed.');
       })
       .finally(() => {
@@ -3645,6 +3672,28 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
+  private playerPickerLabel(player: HassEntity, players: HassEntity[]): string {
+    const baseLabel = player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1]);
+    const duplicateCount = players.filter((candidate) => {
+      const candidateLabel = candidate.attributes.friendly_name ?? titleCase(candidate.entity_id.split('.')[1]);
+      return candidateLabel.trim().toLowerCase() === baseLabel.trim().toLowerCase();
+    }).length;
+
+    if (duplicateCount < 2) {
+      return baseLabel;
+    }
+
+    if (isMusicAssistantPlayer(player)) {
+      return `${baseLabel} (Music Assistant)`;
+    }
+
+    if (Array.isArray(player.attributes.group_members)) {
+      return `${baseLabel} (Sonos)`;
+    }
+
+    return `${baseLabel} (${player.entity_id.split('.')[1]})`;
+  }
+
   private renderPlayerPicker(players: HassEntity[], header = false): TemplateResult {
     return html`
       <label class="player-picker ${header ? 'header-picker' : ''}">
@@ -3679,7 +3728,7 @@ export class GammaSonosPlayerCard extends LitElement {
                 .value=${player.entity_id}
                 ?selected=${player.entity_id === this.activeEntityId}
               >
-                ${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}
+                ${this.playerPickerLabel(player, players)}
               </option>
             `,
           )}
