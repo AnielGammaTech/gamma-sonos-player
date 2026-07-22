@@ -934,13 +934,14 @@ export class GammaSonosPlayerCard extends LitElement {
         background: rgb(255 255 255 / 6%);
         border: 1px solid rgb(255 255 255 / 11%);
         border-radius: 999px;
+        box-sizing: border-box;
         box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
         color: var(--primary-text-color, #f4f7fb);
         cursor: pointer;
         display: grid;
         gap: 9px;
         grid-template-columns: 9px minmax(0, 1fr) 22px;
-        max-width: min(330px, 100%);
+        max-width: min(300px, 100%);
         min-height: 44px;
         min-width: 0;
         padding: 5px 11px 5px 14px;
