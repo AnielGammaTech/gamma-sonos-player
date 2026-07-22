@@ -580,7 +580,7 @@ function rt(o) {
 }
 function f(o) {
   const e = String((o == null ? void 0 : o.attributes.app_id) ?? "").toLowerCase(), t = String((o == null ? void 0 : o.attributes.platform) ?? "").toLowerCase(), i = String((o == null ? void 0 : o.attributes.source) ?? "").toLowerCase(), s = Array.isArray(o == null ? void 0 : o.attributes.source_list) ? o.attributes.source_list.join(" ").toLowerCase() : "";
-  return t.includes("sonos") || Array.isArray(o == null ? void 0 : o.attributes.group_members) ? !1 : (o == null ? void 0 : o.attributes.mass_player_type) === "player" || !!(o != null && o.attributes.active_queue) || e.includes("music_assistant") || t.includes("music_assistant") || i.includes("music assistant") || s.includes("music assistant");
+  return (o == null ? void 0 : o.attributes.mass_player_type) === "player" || o != null && o.attributes.active_queue || e.includes("music_assistant") || t.includes("music_assistant") ? !0 : t.includes("sonos") || Array.isArray(o == null ? void 0 : o.attributes.group_members) ? !1 : i.includes("music assistant") || s.includes("music assistant");
 }
 function we(o) {
   return !f(o) && Array.isArray(o == null ? void 0 : o.attributes.group_members);

@@ -210,6 +210,17 @@ function isMusicAssistantPlayer(entity?: HassEntity): boolean {
     ? entity.attributes.source_list.join(' ').toLowerCase()
     : '';
 
+  // Prefer Music Assistant's explicit entity markers. MA players may also
+  // expose group_members, so grouping support cannot be used to reject them.
+  if (
+    entity?.attributes.mass_player_type === 'player' ||
+    Boolean(entity?.attributes.active_queue) ||
+    appId.includes('music_assistant') ||
+    platform.includes('music_assistant')
+  ) {
+    return true;
+  }
+
   // Native Sonos reports "Music Assistant" as its active source while MA is
   // playing through it. A source label must not turn the physical Sonos entity
   // into the Music Assistant twin used for queue actions.
@@ -218,10 +229,6 @@ function isMusicAssistantPlayer(entity?: HassEntity): boolean {
   }
 
   return (
-    entity?.attributes.mass_player_type === 'player' ||
-    Boolean(entity?.attributes.active_queue) ||
-    appId.includes('music_assistant') ||
-    platform.includes('music_assistant') ||
     source.includes('music assistant') ||
     sourceList.includes('music assistant')
   );
