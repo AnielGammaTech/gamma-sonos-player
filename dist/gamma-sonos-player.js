@@ -1052,6 +1052,41 @@ const re = class re extends R {
         }
       }
 
+      @keyframes gamma-sonos-live-pulse {
+        0%,
+        100% {
+          opacity: 0.72;
+          transform: scale(0.82);
+        }
+
+        50% {
+          opacity: 1;
+          transform: scale(1.18);
+        }
+      }
+
+      @keyframes gamma-sonos-equalizer {
+        0%,
+        100% {
+          transform: scaleY(0.3);
+        }
+
+        50% {
+          transform: scaleY(1);
+        }
+      }
+
+      @keyframes gamma-sonos-room-glow {
+        0%,
+        100% {
+          box-shadow: 0 0 0 color-mix(in srgb, var(--gamma-sonos-accent) 0%, transparent);
+        }
+
+        50% {
+          box-shadow: 0 0 14px color-mix(in srgb, var(--gamma-sonos-accent) 12%, transparent);
+        }
+      }
+
       .play-button.loading ha-icon {
         animation: gamma-sonos-spin 900ms linear infinite;
       }
@@ -1117,31 +1152,38 @@ const re = class re extends R {
       .playing-rooms {
         align-items: center;
         color: var(--secondary-text-color, #b7c0ce);
-        display: grid;
-        gap: 1px 6px;
-        grid-template-columns: 6px minmax(0, 1fr);
-        justify-content: flex-end;
+        display: inline-flex;
+        gap: 7px;
+        justify-self: end;
+        max-width: 100%;
         min-width: 0;
-        text-align: right;
+        text-align: left;
       }
 
       .playing-rooms > i {
+        animation: gamma-sonos-live-pulse 1.8s ease-in-out infinite;
         background: var(--gamma-sonos-accent);
         border-radius: 999px;
         box-shadow: 0 0 7px color-mix(in srgb, var(--gamma-sonos-accent) 65%, transparent);
-        grid-row: 1 / 3;
+        flex: 0 0 auto;
         height: 6px;
         width: 6px;
       }
 
       .playing-rooms.idle > i {
+        animation: none;
         background: #7f8793;
         box-shadow: none;
       }
 
+      .playing-rooms-copy {
+        display: grid;
+        gap: 1px;
+        min-width: 0;
+      }
+
       .playing-rooms small,
       .playing-rooms strong {
-        grid-column: 2;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -2033,6 +2075,10 @@ const re = class re extends R {
         border-color: color-mix(in srgb, var(--gamma-sonos-accent) 34%, transparent);
       }
 
+      .speaker-tile.playing {
+        animation: gamma-sonos-room-glow 2.6s ease-in-out infinite;
+      }
+
       .speaker-tile.offline {
         opacity: 0.55;
       }
@@ -2121,14 +2167,32 @@ const re = class re extends R {
         gap: 4px;
       }
 
-      .speaker-tile-copy small i {
+      .speaker-playing-indicator {
+        align-items: end;
+        display: inline-flex;
+        flex: 0 0 auto;
+        gap: 1.5px;
+        height: 8px;
+        width: 10px;
+      }
+
+      .speaker-playing-indicator i {
+        animation: gamma-sonos-equalizer 760ms ease-in-out infinite;
         background: var(--gamma-sonos-accent);
         border-radius: 999px;
-        box-shadow: 0 0 8px color-mix(in srgb, var(--gamma-sonos-accent) 62%, transparent);
-        display: inline-block;
-        flex: 0 0 auto;
-        height: 5px;
-        width: 5px;
+        box-shadow: 0 0 6px color-mix(in srgb, var(--gamma-sonos-accent) 55%, transparent);
+        height: 100%;
+        transform: scaleY(0.3);
+        transform-origin: center bottom;
+        width: 2px;
+      }
+
+      .speaker-playing-indicator i:nth-child(2) {
+        animation-delay: -380ms;
+      }
+
+      .speaker-playing-indicator i:nth-child(3) {
+        animation-delay: -190ms;
       }
 
       .speaker-room-action {
@@ -2915,8 +2979,7 @@ const re = class re extends R {
         }
 
         .playing-rooms {
-          justify-content: flex-start;
-          text-align: left;
+          justify-self: start;
         }
 
         .transfer-panel {
@@ -3021,6 +3084,18 @@ const re = class re extends R {
       button:disabled {
         cursor: default;
         opacity: 0.45;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .playing-rooms > i,
+        .speaker-playing-indicator i,
+        .speaker-tile.playing {
+          animation: none;
+        }
+
+        .speaker-playing-indicator i {
+          transform: scaleY(0.72);
+        }
       }
     `;
   }
@@ -4392,14 +4467,18 @@ const re = class re extends R {
         ${i.length > 0 ? l`
               <span class="playing-rooms" title=${i.join(", ")}>
                 <i></i>
-                <small>Playing in</small>
-                <strong>${i.join(", ")}</strong>
+                <span class="playing-rooms-copy">
+                  <small>Playing in</small>
+                  <strong>${i.join(", ")}</strong>
+                </span>
               </span>
             ` : l`
               <span class="playing-rooms idle">
                 <i></i>
-                <small>Playback</small>
-                <strong>Nothing playing</strong>
+                <span class="playing-rooms-copy">
+                  <small>Playback</small>
+                  <strong>Nothing playing</strong>
+                </span>
               </span>
             `}
       </div>
@@ -5328,7 +5407,14 @@ const re = class re extends R {
         </button>
         <span class="speaker-tile-copy">
           <strong>${b}</strong>
-          <small>${u ? l`<i></i>` : p}${m} · ${f}</small>
+          <small>
+            ${u ? l`
+                  <span class="speaker-playing-indicator" aria-hidden="true">
+                    <i></i><i></i><i></i>
+                  </span>
+                ` : p}
+            ${m} · ${f}
+          </small>
         </span>
         ${g ? l`<span class="speaker-state-badge">${g}</span>` : p}
         ${r ? p : l`
