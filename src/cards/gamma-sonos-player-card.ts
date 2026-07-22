@@ -119,6 +119,7 @@ type PlaybackMemory = {
   title?: string;
   artist?: string;
   artwork?: string;
+  artworkSource?: string;
   state?: string;
   updatedAt: number;
 };
@@ -357,6 +358,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private volumeCommitTimers = new Map<string, number>();
   private volumeResetTimers = new Map<string, number>();
   private volumeRenderFrame?: number;
+  private artworkCacheRequests = new Map<string, string>();
 
   static get styles(): CSSResultGroup {
     return css`
@@ -463,14 +465,17 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .mini-art img {
+        grid-area: 1 / 1;
         height: 100%;
         object-fit: cover;
         width: 100%;
+        z-index: 1;
       }
 
       .mini-art ha-icon {
         --mdc-icon-size: 22px;
         color: var(--secondary-text-color, #b7c0ce);
+        grid-area: 1 / 1;
       }
 
       .mini-meta {
@@ -807,8 +812,8 @@ export class GammaSonosPlayerCard extends LitElement {
       .topbar {
         align-items: start;
         display: grid;
-        gap: 8px 12px;
-        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1fr);
         justify-content: initial;
       }
 
@@ -926,20 +931,19 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .player-select {
         align-items: center;
-        background:
-          linear-gradient(145deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 4%)),
-          color-mix(in srgb, var(--gamma-sonos-accent) 7%, transparent);
-        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 26%, rgb(255 255 255 / 10%));
-        border-radius: 15px;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 11%);
+        border-radius: 999px;
         box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
         color: var(--primary-text-color, #f4f7fb);
         cursor: pointer;
         display: grid;
-        gap: 10px;
-        grid-template-columns: 34px minmax(0, 1fr) 24px;
-        min-height: 52px;
+        gap: 9px;
+        grid-template-columns: 9px minmax(0, 1fr) 22px;
+        max-width: min(330px, 100%);
+        min-height: 44px;
         min-width: 0;
-        padding: 7px 10px;
+        padding: 5px 11px 5px 14px;
         position: relative;
         transition: border-color 140ms ease, background 140ms ease;
         width: 100%;
@@ -947,25 +951,21 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .player-select:hover,
       .player-select:focus-within {
-        background:
-          linear-gradient(145deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 5%)),
-          color-mix(in srgb, var(--gamma-sonos-accent) 12%, transparent);
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 11%, rgb(255 255 255 / 6%));
         border-color: color-mix(in srgb, var(--gamma-sonos-accent) 42%, transparent);
       }
 
-      .player-select-icon {
-        align-items: center;
-        background: color-mix(in srgb, var(--gamma-sonos-accent) 18%, transparent);
-        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 28%, transparent);
-        border-radius: 10px;
-        display: inline-flex;
-        height: 32px;
-        justify-content: center;
-        width: 32px;
+      .player-select-dot {
+        background: var(--gamma-sonos-accent);
+        border-radius: 999px;
+        box-shadow: 0 0 9px color-mix(in srgb, var(--gamma-sonos-accent) 62%, transparent);
+        height: 8px;
+        width: 8px;
       }
 
-      .player-select-icon ha-icon {
-        --mdc-icon-size: 19px;
+      .player-select-dot.offline {
+        background: #7f8793;
+        box-shadow: none;
       }
 
       .player-select-copy {
@@ -975,8 +975,8 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .player-select-name {
-        font-size: 14px;
-        font-weight: 820;
+        font-size: 13px;
+        font-weight: 800;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -986,7 +986,7 @@ export class GammaSonosPlayerCard extends LitElement {
         color: var(--secondary-text-color, #b7c0ce);
         font-size: 10px;
         font-weight: 760;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
       }
 
@@ -1885,26 +1885,6 @@ export class GammaSonosPlayerCard extends LitElement {
         background: color-mix(in srgb, var(--gamma-sonos-accent) 30%, transparent);
       }
 
-      .top-controls {
-        align-items: start;
-        display: grid;
-        gap: 4px;
-        justify-items: end;
-        min-width: 0;
-      }
-
-      .header-state {
-        color: var(--secondary-text-color, #b7c0ce);
-        font-size: 12px;
-        font-weight: 650;
-        line-height: 1.1;
-        max-width: 100%;
-        overflow: hidden;
-        text-align: right;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
       @container (max-width: 340px) {
         .topbar {
           gap: 6px;
@@ -1916,10 +1896,6 @@ export class GammaSonosPlayerCard extends LitElement {
 
         .state {
           font-size: 12px;
-        }
-
-        .top-controls {
-          gap: 6px;
         }
 
         .tabs button {
@@ -2057,6 +2033,7 @@ export class GammaSonosPlayerCard extends LitElement {
     this.volumeResetTimers.forEach((timer) => window.clearTimeout(timer));
     this.volumeCommitTimers.clear();
     this.volumeResetTimers.clear();
+    this.artworkCacheRequests.clear();
   }
 
   public getCardSize(): number {
@@ -2230,17 +2207,44 @@ export class GammaSonosPlayerCard extends LitElement {
     return this.activePlayer?.attributes.friendly_name ?? this.activeEntityId;
   }
 
+  private isEphemeralArtworkUrl(value: string): boolean {
+    return value.includes('/api/media_player_proxy/');
+  }
+
   private get artworkUrl(): string {
-    return String(
+    const currentArtwork = String(
       this.playbackPlayer?.attributes.entity_picture ||
-        this.playbackPlayer?.attributes.entity_picture_local ||
-        this.playbackPlayer?.attributes.media_image_url ||
-        this.optimisticPlaybackItem?.image ||
-        this.optimisticPlaybackItem?.thumb ||
-        this.optimisticPlaybackItem?.album?.image ||
-        this.activeMemory?.artwork ||
-        '',
+      this.playbackPlayer?.attributes.entity_picture_local ||
+      this.playbackPlayer?.attributes.media_image_url ||
+      '',
     );
+    if (currentArtwork) {
+      return currentArtwork;
+    }
+
+    const optimisticArtwork = String(
+      this.optimisticPlaybackItem?.image ||
+      this.optimisticPlaybackItem?.thumb ||
+      this.optimisticPlaybackItem?.album?.image ||
+      '',
+    );
+    if (optimisticArtwork) {
+      return optimisticArtwork;
+    }
+
+    const rememberedTitle = String(this.activeMemory?.title ?? '').trim().toLowerCase();
+    const queueMatch = rememberedTitle
+      ? this.queueItems.find((item) => String(item.name ?? '').trim().toLowerCase() === rememberedTitle)
+      : undefined;
+    const queueArtwork = String(
+      queueMatch?.image || queueMatch?.thumb || queueMatch?.album?.image || '',
+    );
+    if (queueArtwork) {
+      return queueArtwork;
+    }
+
+    const rememberedArtwork = String(this.activeMemory?.artwork ?? '');
+    return this.isEphemeralArtworkUrl(rememberedArtwork) ? '' : rememberedArtwork;
   }
 
   private get isPlaying(): boolean {
@@ -2457,6 +2461,59 @@ export class GammaSonosPlayerCard extends LitElement {
     this.writeFavoriteItems(this.favoriteItems);
   }
 
+  private artworkDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+      reader.onerror = () => reject(reader.error ?? new Error('Artwork could not be cached.'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  private cachePlaybackArtwork(entityId: string, title: string, source: string): void {
+    if (!source || this.artworkCacheRequests.get(entityId) === source) {
+      return;
+    }
+
+    this.artworkCacheRequests.set(entityId, source);
+    void fetch(source)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Artwork request failed.');
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        if (!blob.type.startsWith('image/') || blob.size > 1_000_000) {
+          throw new Error('Artwork is not cacheable.');
+        }
+        return this.artworkDataUrl(blob);
+      })
+      .then((dataUrl) => {
+        const current = this.playbackMemory[entityId];
+        if (!dataUrl || current?.title !== title || current.artworkSource !== source) {
+          return;
+        }
+        const nextMemory = {
+          ...this.playbackMemory,
+          [entityId]: {
+            ...current,
+            artwork: dataUrl,
+          },
+        };
+        this.playbackMemory = nextMemory;
+        this.writePlaybackMemory(nextMemory);
+      })
+      .catch(() => {
+        // Live playback still uses the current entity picture when caching is unavailable.
+      })
+      .finally(() => {
+        if (this.artworkCacheRequests.get(entityId) === source) {
+          this.artworkCacheRequests.delete(entityId);
+        }
+      });
+  }
+
   private rememberPlaybackState(): void {
     const player = this.activePlayer;
     const title = String(player?.attributes.media_title ?? '');
@@ -2466,25 +2523,40 @@ export class GammaSonosPlayerCard extends LitElement {
         player?.attributes.source ||
         '',
     );
-    const artwork = String(
+    const artworkSource = String(
       player?.attributes.entity_picture ||
         player?.attributes.entity_picture_local ||
         player?.attributes.media_image_url ||
         '',
     );
 
-    if (!player || (!title && !artwork)) {
+    if (!player || (!title && !artworkSource)) {
       return;
     }
 
     const existing = this.playbackMemory[player.entity_id];
+    const existingStableArtwork =
+      existing?.artworkSource === artworkSource && existing.artwork?.startsWith('data:image/')
+        ? existing.artwork
+        : '';
+    const artwork = artworkSource
+      ? this.isEphemeralArtworkUrl(artworkSource)
+        ? existingStableArtwork
+        : artworkSource
+      : this.isEphemeralArtworkUrl(String(existing?.artwork ?? ''))
+        ? ''
+        : existing?.artwork;
     if (
       existing &&
       existing.title === title &&
       existing.artist === artist &&
       existing.artwork === artwork &&
+      existing.artworkSource === artworkSource &&
       existing.state === player.state
     ) {
+      if (artworkSource && this.isEphemeralArtworkUrl(artworkSource) && !existingStableArtwork) {
+        this.cachePlaybackArtwork(player.entity_id, title, artworkSource);
+      }
       return;
     }
 
@@ -2494,6 +2566,7 @@ export class GammaSonosPlayerCard extends LitElement {
         title,
         artist,
         artwork,
+        artworkSource,
         state: player.state,
         updatedAt: Date.now(),
       },
@@ -2501,6 +2574,9 @@ export class GammaSonosPlayerCard extends LitElement {
 
     this.playbackMemory = nextMemory;
     this.writePlaybackMemory(nextMemory);
+    if (artworkSource && this.isEphemeralArtworkUrl(artworkSource) && !existingStableArtwork) {
+      this.cachePlaybackArtwork(player.entity_id, title, artworkSource);
+    }
   }
 
   private scheduleQueueRefreshForPlayback(): void {
@@ -4147,12 +4223,10 @@ export class GammaSonosPlayerCard extends LitElement {
 
     return html`
       <label class="player-select">
-        <span class="player-select-icon" aria-hidden="true">
-          <ha-icon .icon=${'mdi:speaker'}></ha-icon>
-        </span>
+        <span class="player-select-dot ${isUnavailable(active) ? 'offline' : ''}" aria-hidden="true"></span>
         <span class="player-select-copy">
           <span class="player-select-name">${this.playerPickerLabel(active, players)}</span>
-          <span class="player-select-status">${status} · Choose speaker</span>
+          <span class="player-select-status">${status}</span>
         </span>
         <ha-icon .icon=${'mdi:chevron-down'} aria-hidden="true"></ha-icon>
         <select
@@ -4184,14 +4258,6 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
-  private renderTopControls(unavailable: boolean, player?: HassEntity): TemplateResult {
-    return html`
-      <div class="top-controls">
-        <span class="header-state">${unavailable ? 'Unavailable' : titleCase(player?.state ?? 'idle')}</span>
-      </div>
-    `;
-  }
-
   private renderMiniPlayer(
     title: string,
     artist: string,
@@ -4201,9 +4267,20 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <section class="mini-player">
         <div class="mini-art" aria-label="Artwork">
+          <ha-icon .icon=${'mdi:music-note'}></ha-icon>
           ${artworkUrl
-            ? html`<img src=${artworkUrl} alt="" loading="eager" decoding="async" />`
-            : html`<ha-icon .icon=${'mdi:music-note'}></ha-icon>`}
+            ? html`
+                <img
+                  src=${artworkUrl}
+                  alt=""
+                  loading="eager"
+                  decoding="async"
+                  @error=${(event: Event) => {
+                    (event.currentTarget as HTMLImageElement).hidden = true;
+                  }}
+                />
+              `
+            : nothing}
         </div>
         <div class="mini-meta">
           <span class="track">${title}</span>
@@ -5272,7 +5349,6 @@ export class GammaSonosPlayerCard extends LitElement {
         >
           <div class="topbar">
             ${this.renderHeaderIdentity()}
-            ${this.renderTopControls(unavailable, player)}
           </div>
           ${this.renderRooms()}
           ${this.renderMiniPlayer(title, artist, unavailable)}
