@@ -1158,16 +1158,12 @@ const rt = class rt extends I {
       }
 
       .room-picker {
-        display: flex;
+        display: grid;
         gap: 7px;
+        grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
         min-width: 0;
-        overflow-x: auto;
-        padding: 2px 1px 5px;
-        scrollbar-width: none;
-      }
-
-      .room-picker::-webkit-scrollbar {
-        display: none;
+        overflow: visible;
+        padding: 2px 1px;
       }
 
       .header-picker {
@@ -1183,14 +1179,14 @@ const rt = class rt extends I {
         color: var(--primary-text-color, #f4f7fb);
         cursor: pointer;
         display: inline-grid;
-        flex: 0 0 auto;
         font: inherit;
         gap: 7px;
         grid-template-columns: 9px minmax(0, 1fr);
         min-height: 44px;
-        min-width: 112px;
+        min-width: 0;
         padding: 6px 10px;
         text-align: left;
+        width: 100%;
       }
 
       .room-option.active {
@@ -2155,7 +2151,7 @@ const rt = class rt extends I {
         }
 
         .room-option {
-          min-width: 100px;
+          min-width: 0;
         }
 
         .tabs button {
