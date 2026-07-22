@@ -11,5 +11,10 @@ services:
       APPLE_TV_NAME: Lanai AppleTV
       APPLE_TV_IDENTIFIER: 9C:3E:53:2E:DF:B0
       APPLE_TV_PI: 85a33e55-dde1-409a-8594-048d1b1b4afc
+      BEDROOM_APPLE_TV_ADDRESS: 192.168.1.245
+      BEDROOM_APPLE_TV_NAME: Bedroom Apple TV
+      BEDROOM_APPLE_TV_IDENTIFIER: 16:17:C1:F8:0F:17
+      BEDROOM_APPLE_TV_MODEL: AppleTV14,1
+      BEDROOM_APPLE_TV_PI: 15ccfc9b-64b6-49d5-b23b-d36ec21d42d5
     volumes:
       - /opt/party-screen:/state

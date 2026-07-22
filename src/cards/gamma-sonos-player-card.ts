@@ -8,6 +8,7 @@ type BrowserView = 'results' | 'artist' | 'album' | 'playlist';
 type ResultAction = 'artist' | 'album' | 'playlist' | 'play';
 type ResultContext = 'search' | 'artist' | 'album' | 'playlist' | 'favorites';
 type LibraryMediaType = 'playlist' | 'album' | 'artist' | 'track';
+type PartyTarget = { id: string; name: string };
 
 type LibraryCollection = Record<LibraryMediaType, SearchItem[]>;
 
@@ -76,6 +77,7 @@ interface GammaSonosPlayerConfig {
   party_stop_service?: string;
   party_dashboard_url?: string;
   party_screen_name?: string;
+  party_targets?: PartyTarget[];
   show_queue_hint?: boolean;
   background?: string;
   accent_color?: string;
@@ -174,6 +176,10 @@ const DEFAULT_PARTY_START_SERVICE = 'rest_command.party_screen_start';
 const DEFAULT_PARTY_STOP_SERVICE = 'rest_command.party_screen_stop';
 const DEFAULT_PARTY_DASHBOARD_URL = 'https://music.anieflix.com/#/party';
 const DEFAULT_PARTY_SCREEN_NAME = 'Lanai AppleTV';
+const DEFAULT_PARTY_TARGETS: PartyTarget[] = [
+  { id: 'lanai', name: 'Lanai Apple TV' },
+  { id: 'bedroom', name: 'Bedroom Apple TV' },
+];
 
 type CachedItems = {
   expiresAt: number;
@@ -313,6 +319,7 @@ export class GammaSonosPlayerCard extends LitElement {
     partyPending: { state: true },
     partyStatus: { state: true },
     partyError: { state: true },
+    partyTargetId: { state: true },
   };
 
   public hass?: HomeAssistant;
@@ -365,6 +372,7 @@ export class GammaSonosPlayerCard extends LitElement {
   private partyPending = false;
   private partyStatus = '';
   private partyError = '';
+  private partyTargetId = 'lanai';
   private initialTabResolved = false;
   private lastPlaybackRequest?: PlaybackRequest;
   private playbackFeedbackTimer?: number;
@@ -766,7 +774,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
       @container (min-width: 620px) {
         .now-layout.with-queue {
-          grid-template-columns: minmax(240px, 0.78fr) minmax(300px, 1.22fr);
+          grid-template-columns: minmax(300px, 1fr) minmax(220px, 0.62fr);
         }
 
         .now-layout.with-queue .now-artwork {
@@ -867,10 +875,72 @@ export class GammaSonosPlayerCard extends LitElement {
         justify-content: initial;
       }
 
+      .header-identity {
+        align-items: center;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+        min-width: 0;
+      }
+
       .title {
         display: grid;
         gap: 2px;
         min-width: 0;
+      }
+
+      .room-shortcuts {
+        display: flex;
+        gap: 5px;
+        justify-content: flex-end;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .room-shortcuts::-webkit-scrollbar {
+        display: none;
+      }
+
+      .room-shortcut {
+        align-items: center;
+        appearance: none;
+        background: rgb(255 255 255 / 4%);
+        border: 1px solid rgb(255 255 255 / 8%);
+        border-radius: 999px;
+        color: var(--secondary-text-color, #b7c0ce);
+        cursor: pointer;
+        display: inline-flex;
+        flex: 0 0 auto;
+        font: inherit;
+        font-size: 9px;
+        font-weight: 750;
+        gap: 5px;
+        min-height: 30px;
+        max-width: 132px;
+        overflow: hidden;
+        padding: 0 9px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .room-shortcut > span {
+        background: #7f8793;
+        border-radius: 999px;
+        flex: 0 0 auto;
+        height: 6px;
+        width: 6px;
+      }
+
+      .room-shortcut.playing > span {
+        background: var(--gamma-sonos-accent);
+        box-shadow: 0 0 7px color-mix(in srgb, var(--gamma-sonos-accent) 65%, transparent);
+      }
+
+      .room-shortcut.active {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 12%, rgb(255 255 255 / 5%));
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 34%, transparent);
+        color: var(--primary-text-color, #f4f7fb);
       }
 
       .state-line {
@@ -1332,6 +1402,55 @@ export class GammaSonosPlayerCard extends LitElement {
         color: var(--secondary-text-color, #b7c0ce);
         font-size: 12px;
         line-height: 1.4;
+      }
+
+      .party-tv-picker {
+        align-items: center;
+        background: rgb(255 255 255 / 5%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 14px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        min-height: 58px;
+        padding: 8px 10px;
+      }
+
+      .party-tv-picker > ha-icon {
+        --mdc-icon-size: 25px;
+        color: var(--gamma-sonos-accent);
+      }
+
+      .party-tv-copy {
+        display: grid;
+        gap: 1px;
+        min-width: 0;
+      }
+
+      .party-tv-copy strong {
+        font-size: 13px;
+      }
+
+      .party-tv-copy small {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 10px;
+      }
+
+      .party-tv-picker select {
+        appearance: none;
+        background:
+          linear-gradient(45deg, transparent 50%, currentColor 50%) right 15px top 50% / 6px 6px no-repeat,
+          linear-gradient(135deg, currentColor 50%, transparent 50%) right 10px top 50% / 6px 6px no-repeat,
+          rgb(255 255 255 / 7%);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 28%, rgb(255 255 255 / 10%));
+        border-radius: 11px;
+        color: var(--primary-text-color, #f4f7fb);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 750;
+        max-width: 190px;
+        min-height: 38px;
+        padding: 0 32px 0 12px;
       }
 
       .party-actions {
@@ -2008,7 +2127,7 @@ export class GammaSonosPlayerCard extends LitElement {
       .library-grid {
         display: grid;
         gap: 8px;
-        grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
         min-width: 0;
       }
 
@@ -2508,8 +2627,17 @@ export class GammaSonosPlayerCard extends LitElement {
           max-width: min(240px, 100%);
         }
 
+        .header-identity {
+          align-items: stretch;
+          grid-template-columns: 1fr;
+        }
+
+        .room-shortcuts {
+          justify-content: flex-start;
+        }
+
         .library-grid {
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
         }
 
         .speaker-workspace-heading,
@@ -4086,16 +4214,20 @@ export class GammaSonosPlayerCard extends LitElement {
     this.libraryError = '';
 
     try {
-      const [playlist, album, artist, track] = await Promise.all([
+      const [playlist, album, artist] = await Promise.all([
         this.fetchMusicAssistantLibrary('playlist'),
         this.fetchMusicAssistantLibrary('album'),
         this.fetchMusicAssistantLibrary('artist'),
-        this.fetchMusicAssistantLibrary('track'),
       ]);
       if (requestId !== this.libraryRequestId) {
         return;
       }
-      this.libraryItems = { playlist, album, artist, track };
+      this.libraryItems = {
+        playlist: playlist.filter((item) => String(item.name ?? '').trim().toLowerCase() !== 'infinite mix'),
+        album,
+        artist,
+        track: [],
+      };
       this.libraryLoaded = true;
     } catch (error) {
       if (requestId === this.libraryRequestId) {
@@ -5083,10 +5215,28 @@ export class GammaSonosPlayerCard extends LitElement {
     const players = this.allPlayers;
 
     return html`
-      <div class="title">
+      <div class="header-identity">
+        <div class="title">
+          ${players.length > 1
+            ? this.renderPlayerPicker(players)
+            : html`<span class="name">${this.activeName || 'Sonos'}</span>`}
+        </div>
         ${players.length > 1
-          ? this.renderPlayerPicker(players)
-          : html`<span class="name">${this.activeName || 'Sonos'}</span>`}
+          ? html`
+              <div class="room-shortcuts" aria-label="Quick room selection">
+                ${players.map((player) => html`
+                  <button
+                    class="room-shortcut ${player.entity_id === this.activeEntityId ? 'active' : ''} ${player.state === 'playing' ? 'playing' : ''}"
+                    title=${`${this.playerPickerLabel(player, players)} — ${this.playerQuickStatus(player)}`}
+                    @click=${() => this.selectPlayer(player.entity_id)}
+                  >
+                    <span></span>
+                    ${this.playerPickerLabel(player, players)}
+                  </button>
+                `)}
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }
@@ -5557,7 +5707,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private renderUpNextPreview(): TemplateResult {
-    const previewItems = this.queueItems.slice(0, 3);
+    const previewItems = this.queueItems.slice(0, 2);
 
     return html`
       <aside class="up-next-card" aria-label="Upcoming queue">
@@ -5782,7 +5932,7 @@ export class GammaSonosPlayerCard extends LitElement {
       return html`
         <div class="library-loading">
           <ha-icon .icon=${'mdi:loading'}></ha-icon>
-          <span>Loading playlists, albums, artists, and songs…</span>
+          <span>Loading playlists, albums, and artists…</span>
         </div>
       `;
     }
@@ -5808,7 +5958,6 @@ export class GammaSonosPlayerCard extends LitElement {
         ${this.renderLibraryShelf('Playlists', 'playlist', 'mdi:playlist-music', 6)}
         ${this.renderLibraryShelf('Recently added albums', 'album', 'mdi:album', 6)}
         ${this.renderLibraryShelf('Artists', 'artist', 'mdi:account-music', 6)}
-        ${this.renderLibraryShelf('Recently added songs', 'track', 'mdi:music-note', 6)}
       </div>
     `;
   }
@@ -5846,14 +5995,14 @@ export class GammaSonosPlayerCard extends LitElement {
       : mediaType === 'album'
         ? () => this.openAlbum(item)
         : mediaType === 'playlist'
-          ? () => this.openPlaylist(item)
+          ? () => this.playSearchResult(item, 'play')
           : () => this.playSearchResult(item, 'play');
 
     return html`
       <button class="library-card" @click=${action} title=${item.name ?? 'Open'}>
         <span class="library-art" style=${image ? `background-image: url("${image}")` : ''}>
           ${image ? nothing : html`<ha-icon .icon=${fallbackIcon}></ha-icon>`}
-          ${mediaType === 'track'
+          ${mediaType === 'track' || mediaType === 'playlist'
             ? html`<span class="library-play"><ha-icon .icon=${'mdi:play'}></ha-icon></span>`
             : nothing}
         </span>
@@ -6049,6 +6198,28 @@ export class GammaSonosPlayerCard extends LitElement {
     return [configured.slice(0, separator), configured.slice(separator + 1)];
   }
 
+  private get partyTargets(): PartyTarget[] {
+    const configured = Array.isArray(this.config.party_targets)
+      ? this.config.party_targets.filter((target) => target?.id && target?.name)
+      : [];
+    if (configured.length > 0) {
+      return configured;
+    }
+
+    return DEFAULT_PARTY_TARGETS.map((target, index) => ({
+      ...target,
+      name: index === 0
+        ? this.config.party_screen_name || target.name
+        : target.name,
+    }));
+  }
+
+  private get selectedPartyTarget(): PartyTarget {
+    return this.partyTargets.find((target) => target.id === this.partyTargetId)
+      ?? this.partyTargets[0]
+      ?? { id: 'lanai', name: DEFAULT_PARTY_SCREEN_NAME };
+  }
+
   private runPartyAction(action: 'start' | 'stop'): void {
     if (this.partyPending) {
       return;
@@ -6069,10 +6240,11 @@ export class GammaSonosPlayerCard extends LitElement {
         : DEFAULT_PARTY_STOP_SERVICE;
       const [domain, service] = this.configuredService(configured, fallback);
 
-      void this.service(domain, service)
+      const target = this.selectedPartyTarget;
+      void this.service(domain, service, action === 'start' ? { target: target.id } : undefined)
         .then(() => {
           this.partyStatus = action === 'start'
-            ? `Party screen sent to ${this.config.party_screen_name || DEFAULT_PARTY_SCREEN_NAME}.`
+            ? `Party screen sent to ${target.name}.`
             : 'Party screen stopped.';
         })
         .catch((error: unknown) => {
@@ -6095,7 +6267,7 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private renderParty(): TemplateResult {
-    const target = this.config.party_screen_name || DEFAULT_PARTY_SCREEN_NAME;
+    const target = this.selectedPartyTarget;
     return html`
       <section class="party">
         <div class="party-hero">
@@ -6103,9 +6275,30 @@ export class GammaSonosPlayerCard extends LitElement {
             <span class="party-icon"><ha-icon .icon=${'mdi:party-popper'}></ha-icon></span>
             <span class="party-copy">
               <span class="party-title">Party on TV</span>
-              <span class="party-target">Screen: ${target}</span>
+              <span class="party-target">Choose where to show the Party screen</span>
             </span>
           </div>
+          <label class="party-tv-picker">
+            <ha-icon .icon=${'mdi:apple'}></ha-icon>
+            <span class="party-tv-copy">
+              <strong>${target.name}</strong>
+              <small>Apple TV display</small>
+            </span>
+            <select
+              aria-label="Party Apple TV"
+              .value=${target.id}
+              ?disabled=${this.partyPending}
+              @change=${(event: Event) => {
+                this.partyTargetId = (event.target as HTMLSelectElement).value;
+                this.partyStatus = '';
+                this.partyError = '';
+              }}
+            >
+              ${this.partyTargets.map((option) => html`
+                <option value=${option.id}>${option.name}</option>
+              `)}
+            </select>
+          </label>
           <span class="party-description">
             Show Music Assistant's live Party queue and guest QR code on the TV. This does not start or change the music.
           </span>
@@ -6480,7 +6673,6 @@ export class GammaSonosPlayerCard extends LitElement {
           <div class="topbar">
             ${this.renderHeaderIdentity()}
           </div>
-          ${this.renderRooms()}
           ${this.activeTab === 'now' ? nothing : this.renderMiniPlayer(title, artist, unavailable)}
           ${this.activeTab === 'now' ? nothing : this.renderVolumeControl('compact')}
           ${this.renderPlaybackFeedback()}
@@ -6618,6 +6810,79 @@ class GammaSonosPlayerCardEditor extends LitElement {
       .setup-badge.needs-ma {
         background: rgb(224 102 102 / 16%);
         color: #ffaaa4;
+      }
+
+      .color-controls {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .color-control {
+        align-items: center;
+        background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+        border: 1px solid color-mix(in srgb, var(--divider-color) 72%, transparent);
+        border-radius: 10px;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: 42px minmax(0, 1fr);
+        padding: 8px;
+      }
+
+      .color-control input[type='color'] {
+        appearance: none;
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+        height: 38px;
+        padding: 0;
+        width: 42px;
+      }
+
+      .color-control input[type='color']::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+
+      .color-control input[type='color']::-webkit-color-swatch {
+        border: 1px solid color-mix(in srgb, var(--primary-text-color) 22%, transparent);
+        border-radius: 9px;
+      }
+
+      .color-presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+
+      .color-preset {
+        align-items: center;
+        appearance: none;
+        background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+        border: 1px solid color-mix(in srgb, var(--divider-color) 72%, transparent);
+        border-radius: 999px;
+        color: var(--primary-text-color);
+        cursor: pointer;
+        display: inline-flex;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        gap: 6px;
+        min-height: 32px;
+        padding: 0 10px 0 5px;
+      }
+
+      .color-preset i {
+        background: linear-gradient(135deg, var(--preset-background), var(--preset-accent));
+        border: 1px solid rgb(255 255 255 / 20%);
+        border-radius: 999px;
+        height: 20px;
+        width: 20px;
+      }
+
+      @media (max-width: 520px) {
+        .color-controls {
+          grid-template-columns: 1fr;
+        }
       }
     `;
   }

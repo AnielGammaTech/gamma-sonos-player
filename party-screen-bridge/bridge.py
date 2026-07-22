@@ -14,6 +14,7 @@ import logging
 import os
 import shutil
 import signal
+from dataclasses import dataclass
 from ipaddress import IPv4Address
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,56 @@ APPLE_TV_PI = os.getenv(
 )
 APPLE_TV_VV = os.getenv("APPLE_TV_VV", "1")
 
+
+@dataclass(frozen=True)
+class PartyTarget:
+    id: str
+    name: str
+    address: str
+    identifier: str
+    credentials_file: Path
+    features: str
+    flags: str
+    model: str
+    pi: str
+    vv: str
+
+
+PARTY_TARGETS = {
+    "lanai": PartyTarget(
+        id="lanai",
+        name=APPLE_TV_NAME,
+        address=APPLE_TV_ADDRESS,
+        identifier=APPLE_TV_IDENTIFIER,
+        credentials_file=CREDENTIALS_FILE,
+        features=APPLE_TV_FEATURES,
+        flags=APPLE_TV_FLAGS,
+        model=APPLE_TV_MODEL,
+        pi=APPLE_TV_PI,
+        vv=APPLE_TV_VV,
+    ),
+    "bedroom": PartyTarget(
+        id="bedroom",
+        name=os.getenv("BEDROOM_APPLE_TV_NAME", "Bedroom Apple TV"),
+        address=os.getenv("BEDROOM_APPLE_TV_ADDRESS", "192.168.1.245"),
+        identifier=os.getenv(
+            "BEDROOM_APPLE_TV_IDENTIFIER", "16:17:C1:F8:0F:17"
+        ),
+        credentials_file=STATE_DIR / os.getenv(
+            "BEDROOM_APPLE_TV_CREDENTIALS_FILE", "bedroom_airplay_credentials"
+        ),
+        features=os.getenv(
+            "BEDROOM_APPLE_TV_FEATURES", "0x4A7FDFD5,0x3C177FDE"
+        ),
+        flags=os.getenv("BEDROOM_APPLE_TV_FLAGS", "0x120644"),
+        model=os.getenv("BEDROOM_APPLE_TV_MODEL", "AppleTV14,1"),
+        pi=os.getenv(
+            "BEDROOM_APPLE_TV_PI", "15ccfc9b-64b6-49d5-b23b-d36ec21d42d5"
+        ),
+        vv=os.getenv("BEDROOM_APPLE_TV_VV", "1"),
+    ),
+}
+
 SCREEN_WIDTH = int(os.getenv("SCREEN_WIDTH", "1280"))
 SCREEN_HEIGHT = int(os.getenv("SCREEN_HEIGHT", "720"))
 SCREEN_FPS = int(os.getenv("SCREEN_FPS", "5"))
@@ -80,6 +131,7 @@ class PartyScreenBridge:
         self.apple_tv: Any | None = None
         self.last_error = ""
         self.render_ready = False
+        self.active_target_id: str | None = None
 
     async def start_renderer(self) -> None:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -307,25 +359,25 @@ class PartyScreenBridge:
                     request_id += 1
                     await asyncio.sleep(1 / SCREEN_FPS)
 
-    def _apple_tv_config(self) -> BaseConfig:
-        if not CREDENTIALS_FILE.exists():
-            raise RuntimeError(f"Missing paired AirPlay credentials: {CREDENTIALS_FILE}")
-        credentials = CREDENTIALS_FILE.read_text(encoding="utf-8").strip()
+    def _apple_tv_config(self, target: PartyTarget) -> BaseConfig:
+        if not target.credentials_file.exists():
+            raise RuntimeError(f"{target.name} is not paired yet")
+        credentials = target.credentials_file.read_text(encoding="utf-8").strip()
         if not credentials:
-            raise RuntimeError("Paired AirPlay credentials file is empty")
+            raise RuntimeError(f"{target.name} pairing is incomplete")
 
         properties = {
-            "features": APPLE_TV_FEATURES,
-            "flags": APPLE_TV_FLAGS,
-            "model": APPLE_TV_MODEL,
-            "pi": APPLE_TV_PI,
-            "vv": APPLE_TV_VV,
-            "deviceid": APPLE_TV_IDENTIFIER,
+            "features": target.features,
+            "flags": target.flags,
+            "model": target.model,
+            "pi": target.pi,
+            "vv": target.vv,
+            "deviceid": target.identifier,
         }
-        config = AppleTV(IPv4Address(APPLE_TV_ADDRESS), APPLE_TV_NAME)
+        config = AppleTV(IPv4Address(target.address), target.name)
         config.add_service(
             AirPlayService(
-                APPLE_TV_IDENTIFIER,
+                target.identifier,
                 APPLE_TV_PORT,
                 credentials=credentials,
                 properties=properties,
@@ -333,19 +385,25 @@ class PartyScreenBridge:
         )
         return config
 
-    async def start_airplay(self) -> None:
+    async def start_airplay(self, target_id: str = "lanai") -> None:
+        target = PARTY_TARGETS.get(target_id)
+        if not target:
+            raise RuntimeError(f"Unknown Party screen: {target_id}")
         if self.airplay_task and not self.airplay_task.done():
-            return
+            if self.active_target_id == target.id:
+                return
+            await self.stop_airplay()
         if not self.render_ready:
             raise RuntimeError("Party renderer is not ready")
 
         self.last_error = ""
-        config = self._apple_tv_config()
+        config = self._apple_tv_config(target)
+        self.active_target_id = target.id
         self.apple_tv = await connect(config, asyncio.get_running_loop(), protocol=Protocol.AirPlay)
 
         async def play() -> None:
             try:
-                LOGGER.info("Starting Party screen on %s", APPLE_TV_NAME)
+                LOGGER.info("Starting Party screen on %s", target.name)
                 await self.apple_tv.stream.play_url(PUBLIC_HLS_URL)
             except asyncio.CancelledError:
                 raise
@@ -374,6 +432,7 @@ class PartyScreenBridge:
         if self.apple_tv:
             self.apple_tv.close()
         self.apple_tv = None
+        self.active_target_id = None
         LOGGER.info("Party screen stopped")
 
     async def close(self) -> None:
@@ -393,11 +452,24 @@ class PartyScreenBridge:
 
     def status(self) -> dict[str, Any]:
         airplaying = bool(self.airplay_task and not self.airplay_task.done())
+        active_target = PARTY_TARGETS.get(self.active_target_id or "")
         return {
             "ok": self.render_ready and not self.last_error,
             "renderer_ready": self.render_ready,
             "airplaying": airplaying,
-            "target": APPLE_TV_NAME,
+            "target": active_target.name if active_target else None,
+            "target_id": self.active_target_id,
+            "targets": [
+                {
+                    "id": target.id,
+                    "name": target.name,
+                    "paired": bool(
+                        target.credentials_file.exists()
+                        and target.credentials_file.stat().st_size > 0
+                    ),
+                }
+                for target in PARTY_TARGETS.values()
+            ],
             "error": self.last_error or None,
         }
 
@@ -409,9 +481,16 @@ async def create_app() -> web.Application:
     async def health(_: web.Request) -> web.Response:
         return web.json_response(bridge.status())
 
-    async def start(_: web.Request) -> web.Response:
+    async def start(request: web.Request) -> web.Response:
         try:
-            await bridge.start_airplay()
+            target_id = request.match_info.get("target_id", "")
+            if not target_id:
+                target_id = request.query.get("target", "")
+            if not target_id and request.can_read_body:
+                with contextlib.suppress(Exception):
+                    body = await request.json()
+                    target_id = str(body.get("target", ""))
+            await bridge.start_airplay(target_id or "lanai")
             return web.json_response(bridge.status())
         except Exception as error:
             bridge.last_error = str(error)
@@ -428,6 +507,7 @@ async def create_app() -> web.Application:
     app = web.Application()
     app.router.add_get("/health", health)
     app.router.add_post("/start", start)
+    app.router.add_post("/start/{target_id}", start)
     app.router.add_post("/stop", stop)
     app.router.add_static("/hls", HLS_DIR, show_index=False)
     app.on_cleanup.append(cleanup)

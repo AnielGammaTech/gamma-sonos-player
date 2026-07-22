@@ -36,6 +36,11 @@ party_start_service: rest_command.party_screen_start
 party_stop_service: rest_command.party_screen_stop
 party_dashboard_url: https://music.example.com/#/party
 party_screen_name: Living Room Apple TV
+party_targets:
+  - id: lanai
+    name: Lanai Apple TV
+  - id: bedroom
+    name: Bedroom Apple TV
 ```
 
 To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools > Actions, choose `music_assistant.search`, select your Music Assistant instance from the dropdown, switch the action editor to YAML, and copy the generated `config_entry_id`. The card uses that same ID for `music_assistant.get_library`.
@@ -74,6 +79,7 @@ To find `music_assistant_config_entry_id`, open Home Assistant Developer Tools >
 | `party_stop_service` | `string` | `rest_command.party_screen_stop` | Home Assistant action that stops the external Party screen bridge. |
 | `party_dashboard_url` | `string` | `https://music.anieflix.com/#/party` | URL opened by the Party panel's dashboard button. |
 | `party_screen_name` | `string` | `Lanai AppleTV` | Friendly TV name shown in the Party panel. |
+| `party_targets` | `{id, name}[]` | Lanai and Bedroom Apple TVs | TV choices shown in the Party panel. The ID is sent to the Party bridge. |
 | `width` | `string` | `100%` | Card width when `fill_container` is false. |
 | `fill_container` | `boolean` | `true` | Stretch to the full dashboard card/container width. |
 | `compact` | `boolean` | `false` | Use a denser layout for narrow dashboard columns. |
@@ -102,11 +108,11 @@ Configure Home Assistant to call it:
 ```yaml
 rest_command:
   party_screen_start:
-    url: http://YOUR_DOCKER_HOST:8099/start
+    url: "http://YOUR_DOCKER_HOST:8099/start/{{ target | default('lanai') }}"
     method: POST
   party_screen_stop:
     url: http://YOUR_DOCKER_HOST:8099/stop
     method: POST
 ```
 
-The bridge expects `/state/airplay_credentials` and optionally `/state/ma_access_token` as root-only files. Do not put either value in Lovelace YAML or commit them to this repository. See `party-screen-bridge/docker-compose.example.yml` for the container settings.
+The bridge expects `/state/airplay_credentials` for Lanai, `/state/bedroom_airplay_credentials` for Bedroom, and optionally `/state/ma_access_token` as root-only files. Do not put any credential in Lovelace YAML or commit it to this repository. See `party-screen-bridge/docker-compose.example.yml` for the container settings.
