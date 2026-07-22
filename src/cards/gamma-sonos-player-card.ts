@@ -453,11 +453,24 @@ export class GammaSonosPlayerCard extends LitElement {
         background:
           radial-gradient(circle, rgb(255 255 255 / 9%), transparent 70%),
           rgb(255 255 255 / 5%);
-        background-image: var(--gamma-sonos-cover);
         background-position: center;
         background-size: cover;
         border: 1px solid rgb(255 255 255 / 10%);
         border-radius: 12px;
+        display: grid;
+        overflow: hidden;
+        place-items: center;
+      }
+
+      .mini-art img {
+        height: 100%;
+        object-fit: cover;
+        width: 100%;
+      }
+
+      .mini-art ha-icon {
+        --mdc-icon-size: 22px;
+        color: var(--secondary-text-color, #b7c0ce);
       }
 
       .mini-meta {
@@ -911,79 +924,84 @@ export class GammaSonosPlayerCard extends LitElement {
         padding: 0 8px;
       }
 
-      .room-picker {
-        display: grid;
-        gap: 7px;
-        grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
-        min-width: 0;
-        overflow: visible;
-        padding: 2px 1px;
-      }
-
-      .header-picker {
-        width: 100%;
-      }
-
-      .room-option {
+      .player-select {
         align-items: center;
-        appearance: none;
-        background: rgb(255 255 255 / 5%);
-        border: 1px solid rgb(255 255 255 / 9%);
-        border-radius: 13px;
+        background:
+          linear-gradient(145deg, rgb(255 255 255 / 8%), rgb(255 255 255 / 4%)),
+          color-mix(in srgb, var(--gamma-sonos-accent) 7%, transparent);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 26%, rgb(255 255 255 / 10%));
+        border-radius: 15px;
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
         color: var(--primary-text-color, #f4f7fb);
         cursor: pointer;
-        display: inline-grid;
-        font: inherit;
-        gap: 7px;
-        grid-template-columns: 9px minmax(0, 1fr);
-        min-height: 44px;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 34px minmax(0, 1fr) 24px;
+        min-height: 52px;
         min-width: 0;
-        padding: 6px 10px;
-        text-align: left;
+        padding: 7px 10px;
+        position: relative;
+        transition: border-color 140ms ease, background 140ms ease;
         width: 100%;
       }
 
-      .room-option.active {
-        background: color-mix(in srgb, var(--gamma-sonos-accent) 17%, rgb(255 255 255 / 5%));
+      .player-select:hover,
+      .player-select:focus-within {
+        background:
+          linear-gradient(145deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 5%)),
+          color-mix(in srgb, var(--gamma-sonos-accent) 12%, transparent);
         border-color: color-mix(in srgb, var(--gamma-sonos-accent) 42%, transparent);
       }
 
-      .room-status-dot {
-        background: #79dc9c;
-        border-radius: 999px;
-        box-shadow: 0 0 8px rgb(121 220 156 / 48%);
-        height: 8px;
-        width: 8px;
+      .player-select-icon {
+        align-items: center;
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 18%, transparent);
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 28%, transparent);
+        border-radius: 10px;
+        display: inline-flex;
+        height: 32px;
+        justify-content: center;
+        width: 32px;
       }
 
-      .room-option.active .room-status-dot {
-        background: var(--gamma-sonos-accent);
+      .player-select-icon ha-icon {
+        --mdc-icon-size: 19px;
       }
 
-      .room-option.offline .room-status-dot {
-        background: #7f8793;
-        box-shadow: none;
-      }
-
-      .room-option-copy {
+      .player-select-copy {
         display: grid;
-        gap: 1px;
+        gap: 2px;
         min-width: 0;
       }
 
-      .room-option-name {
-        font-size: 12px;
-        font-weight: 800;
+      .player-select-name {
+        font-size: 14px;
+        font-weight: 820;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      .room-option-status {
+      .player-select-status {
         color: var(--secondary-text-color, #b7c0ce);
-        font-size: 9px;
-        font-weight: 750;
+        font-size: 10px;
+        font-weight: 760;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
+      }
+
+      .player-select > ha-icon {
+        --mdc-icon-size: 21px;
+        color: var(--secondary-text-color, #b7c0ce);
+      }
+
+      .player-select select {
+        appearance: none;
+        cursor: pointer;
+        inset: 0;
+        opacity: 0;
+        position: absolute;
+        width: 100%;
       }
 
       .room.active,
@@ -1902,10 +1920,6 @@ export class GammaSonosPlayerCard extends LitElement {
 
         .top-controls {
           gap: 6px;
-        }
-
-        .room-option {
-          min-width: 0;
         }
 
         .tabs button {
@@ -4124,30 +4138,37 @@ export class GammaSonosPlayerCard extends LitElement {
     }
   }
 
-  private renderPlayerPicker(players: HassEntity[], header = false): TemplateResult {
-    return html`
-      <div class="room-picker ${header ? 'header-picker' : ''}" role="tablist" aria-label="Music Assistant speakers">
-        ${players.map((player) => {
-          const active = player.entity_id === this.activeEntityId;
-          const status = this.playerQuickStatus(player);
+  private renderPlayerPicker(players: HassEntity[]): TemplateResult {
+    const active = this.activePlayer ?? players[0];
+    if (!active) {
+      return html``;
+    }
+    const status = this.playerQuickStatus(active);
 
-          return html`
-            <button
-              class="room-option ${active ? 'active' : ''} ${isUnavailable(player) ? 'offline' : ''}"
-              role="tab"
-              aria-selected=${String(active)}
-              title=${`${this.playerPickerLabel(player, players)} — ${status}`}
-              @click=${() => this.selectPlayer(player.entity_id)}
-            >
-              <span class="room-status-dot" aria-hidden="true"></span>
-              <span class="room-option-copy">
-                <span class="room-option-name">${this.playerPickerLabel(player, players)}</span>
-                <span class="room-option-status">${status}</span>
-              </span>
-            </button>
-          `;
-        })}
-      </div>
+    return html`
+      <label class="player-select">
+        <span class="player-select-icon" aria-hidden="true">
+          <ha-icon .icon=${'mdi:speaker'}></ha-icon>
+        </span>
+        <span class="player-select-copy">
+          <span class="player-select-name">${this.playerPickerLabel(active, players)}</span>
+          <span class="player-select-status">${status} · Choose speaker</span>
+        </span>
+        <ha-icon .icon=${'mdi:chevron-down'} aria-hidden="true"></ha-icon>
+        <select
+          aria-label="Choose Music Assistant speaker"
+          .value=${active.entity_id}
+          @change=${(event: Event) => {
+            this.selectPlayer((event.currentTarget as HTMLSelectElement).value);
+          }}
+        >
+          ${players.map((player) => html`
+            <option value=${player.entity_id}>
+              ${this.playerPickerLabel(player, players)} — ${this.playerQuickStatus(player)}
+            </option>
+          `)}
+        </select>
+      </label>
     `;
   }
 
@@ -4157,7 +4178,7 @@ export class GammaSonosPlayerCard extends LitElement {
     return html`
       <div class="title">
         ${players.length > 1
-          ? this.renderPlayerPicker(players, true)
+          ? this.renderPlayerPicker(players)
           : html`<span class="name">${this.activeName || 'Sonos'}</span>`}
       </div>
     `;
@@ -4176,9 +4197,14 @@ export class GammaSonosPlayerCard extends LitElement {
     artist: string,
     unavailable: boolean,
   ): TemplateResult {
+    const artworkUrl = this.artworkUrl;
     return html`
       <section class="mini-player">
-        <div class="mini-art" aria-label="Artwork"></div>
+        <div class="mini-art" aria-label="Artwork">
+          ${artworkUrl
+            ? html`<img src=${artworkUrl} alt="" loading="eager" decoding="async" />`
+            : html`<ha-icon .icon=${'mdi:music-note'}></ha-icon>`}
+        </div>
         <div class="mini-meta">
           <span class="track">${title}</span>
           <span class="artist">${artist}</span>
