@@ -12,23 +12,29 @@
       }
 
       body {
-        align-items: center;
         background:
           radial-gradient(circle at 20% 10%, #1d3f3d, transparent 34%),
           radial-gradient(circle at 80% 20%, #3b2f4f, transparent 38%),
           #080b10;
         color: var(--primary-text-color);
-        display: flex;
+        display: grid;
         font-family:
           Inter,
           -apple-system,
           BlinkMacSystemFont,
           "Segoe UI",
           sans-serif;
-        justify-content: center;
         margin: 0;
         min-height: 100vh;
         padding: 24px;
+        box-sizing: border-box;
+        grid-template-columns: minmax(0, 1fr);
+        place-items: center;
+        width: 100%;
+      }
+
+      gamma-sonos-player-card {
+        max-width: 100%;
       }
     </style>
   </head>
@@ -101,6 +107,10 @@
             media_title: 'Sweet Disposition',
             media_artist: 'The Temper Trap',
             media_album_name: 'Conditions',
+            media_duration: 240,
+            media_position: 84,
+            media_position_updated_at: new Date(Date.now() - 1000).toISOString(),
+            source: 'Music Assistant',
             entity_picture_local:
               'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=600&q=80',
             volume_level: 0.42,
@@ -236,6 +246,40 @@
             };
           }
 
+          if (message.domain === 'music_assistant' && message.service === 'get_library') {
+            const type = message.service_data?.media_type;
+            const library = {
+              playlist: [
+                { name: 'Sunday Morning', uri: 'spotify://playlist/sunday', media_type: 'playlist', image: 'https://images.unsplash.com/photo-1487180144351-b8472da7d491?auto=format&fit=crop&w=360&q=80' },
+                { name: 'Dinner & Wine', uri: 'spotify://playlist/dinner', media_type: 'playlist', image: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=360&q=80' },
+                { name: 'Backyard Nights', uri: 'spotify://playlist/backyard', media_type: 'playlist', image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=360&q=80' },
+              ],
+              album: [
+                { name: 'Currents', uri: 'spotify://album/currents', media_type: 'album', artist: 'Tame Impala', image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=360&q=80' },
+                { name: 'Blonde', uri: 'spotify://album/blonde', media_type: 'album', artist: 'Frank Ocean', image: 'https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=360&q=80' },
+                { name: 'Conditions', uri: 'spotify://album/conditions', media_type: 'album', artist: 'The Temper Trap', image: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=360&q=80' },
+              ],
+              artist: [
+                { name: 'Frank Ocean', uri: 'spotify://artist/frank-ocean', media_type: 'artist' },
+                { name: 'Tame Impala', uri: 'spotify://artist/tame-impala', media_type: 'artist' },
+                { name: 'The Temper Trap', uri: 'spotify://artist/temper-trap', media_type: 'artist' },
+              ],
+              track: [
+                { name: 'Nights', uri: 'spotify://track/nights', media_type: 'track', artist: 'Frank Ocean' },
+                { name: 'Electric Feel', uri: 'spotify://track/electric-feel', media_type: 'track', artist: 'MGMT' },
+                { name: 'Midnight City', uri: 'spotify://track/midnight-city', media_type: 'track', artist: 'M83' },
+              ],
+            };
+            return {
+              response: {
+                items: library[type] || [],
+                media_type: type,
+                limit: 12,
+                offset: 0,
+              },
+            };
+          }
+
           return {
             response: {
               tracks: [
@@ -277,6 +321,14 @@
         enqueue_mode: 'next',
       });
       player.hass = hass;
+      const previewTab = new URLSearchParams(window.location.search).get('tab');
+      if (['now', 'search', 'queue', 'speakers', 'party'].includes(previewTab)) {
+        window.setTimeout(() => {
+          player.initialTabResolved = true;
+          player.activeTab = previewTab;
+          player.requestUpdate();
+        }, 100);
+      }
     </script>
   </body>
 </html>

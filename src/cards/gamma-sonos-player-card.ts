@@ -7,6 +7,9 @@ type PanelTab = 'now' | 'search' | 'queue' | 'speakers' | 'party';
 type BrowserView = 'results' | 'artist' | 'album' | 'playlist';
 type ResultAction = 'artist' | 'album' | 'playlist' | 'play';
 type ResultContext = 'search' | 'artist' | 'album' | 'playlist' | 'favorites';
+type LibraryMediaType = 'playlist' | 'album' | 'artist' | 'track';
+
+type LibraryCollection = Record<LibraryMediaType, SearchItem[]>;
 
 type HassEntity = {
   entity_id: string;
@@ -146,7 +149,7 @@ const DEFAULT_CONFIG: Required<
   height: 'auto',
   fill_container: true,
   compact: false,
-  enqueue_mode: 'play',
+  enqueue_mode: 'next',
   search_limit: 5,
   library_only: false,
   show_grouping: true,
@@ -206,6 +209,13 @@ function isMusicAssistantPlayer(entity?: HassEntity): boolean {
   const sourceList = Array.isArray(entity?.attributes.source_list)
     ? entity.attributes.source_list.join(' ').toLowerCase()
     : '';
+
+  // Native Sonos reports "Music Assistant" as its active source while MA is
+  // playing through it. A source label must not turn the physical Sonos entity
+  // into the Music Assistant twin used for queue actions.
+  if (platform.includes('sonos') || Array.isArray(entity?.attributes.group_members)) {
+    return false;
+  }
 
   return (
     entity?.attributes.mass_player_type === 'player' ||
@@ -289,6 +299,9 @@ export class GammaSonosPlayerCard extends LitElement {
     playbackMemory: { state: true },
     transportPending: { state: true },
     favoriteItems: { state: true },
+    libraryItems: { state: true },
+    libraryLoading: { state: true },
+    libraryError: { state: true },
     transferTargetEntityId: { state: true },
     partyPending: { state: true },
     partyStatus: { state: true },
@@ -331,6 +344,16 @@ export class GammaSonosPlayerCard extends LitElement {
   private playbackMemory: Record<string, PlaybackMemory> = {};
   private transportPending = false;
   private favoriteItems: SearchItem[] = [];
+  private libraryItems: LibraryCollection = {
+    playlist: [],
+    album: [],
+    artist: [],
+    track: [],
+  };
+  private libraryLoading = false;
+  private libraryError = '';
+  private libraryLoaded = false;
+  private libraryRequestId = 0;
   private transferTargetEntityId = '';
   private partyPending = false;
   private partyStatus = '';
@@ -377,7 +400,11 @@ export class GammaSonosPlayerCard extends LitElement {
       ha-card {
         background: transparent;
         border: 0;
+        box-sizing: border-box;
+        display: block;
         box-shadow: none;
+        min-width: 0;
+        width: 100%;
       }
 
       .player {
@@ -520,10 +547,10 @@ export class GammaSonosPlayerCard extends LitElement {
           0 18px 34px rgb(0 0 0 / 24%);
         isolation: isolate;
         filter: none;
-        max-width: min(340px, 76%);
+        max-width: min(280px, 76%);
         opacity: 1;
         position: relative;
-        width: min(340px, 76%);
+        width: min(280px, 76%);
         transition:
           box-shadow 180ms ease,
           border-color 180ms ease,
@@ -623,7 +650,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .up-next-card {
         align-content: start;
-        align-self: stretch;
+        align-self: start;
         background:
           linear-gradient(145deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 3%)),
           color-mix(in srgb, var(--gamma-sonos-background) 94%, #000000 6%);
@@ -732,17 +759,23 @@ export class GammaSonosPlayerCard extends LitElement {
 
       @container (min-width: 620px) {
         .now-layout.with-queue {
-          grid-template-columns: minmax(260px, 0.92fr) minmax(280px, 1.08fr);
+          grid-template-columns: minmax(240px, 0.78fr) minmax(300px, 1.22fr);
         }
 
         .now-layout.with-queue .now-artwork {
-          max-width: min(300px, 88%);
-          width: min(300px, 88%);
+          max-width: min(270px, 88%);
+          width: min(270px, 88%);
         }
 
-        .now-layout.with-queue .progress {
-          width: min(300px, 88%);
+        .now-layout.with-queue .progress-cluster {
+          width: min(320px, 92%);
         }
+      }
+
+      .progress-cluster {
+        display: grid;
+        gap: 5px;
+        width: min(340px, 88%);
       }
 
       .progress {
@@ -751,7 +784,7 @@ export class GammaSonosPlayerCard extends LitElement {
         border-radius: 999px;
         height: 6px;
         overflow: hidden;
-        width: min(340px, 76%);
+        width: 100%;
       }
 
       .progress-fill {
@@ -761,6 +794,16 @@ export class GammaSonosPlayerCard extends LitElement {
         height: 100%;
         min-width: 0;
         transition: width 180ms ease;
+      }
+
+      .progress-time {
+        color: var(--secondary-text-color, #b7c0ce);
+        display: flex;
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 650;
+        justify-content: space-between;
+        padding: 0 2px;
       }
 
       @keyframes gamma-sonos-spin {
@@ -939,12 +982,12 @@ export class GammaSonosPlayerCard extends LitElement {
         color: var(--primary-text-color, #f4f7fb);
         cursor: pointer;
         display: grid;
-        gap: 9px;
-        grid-template-columns: 9px minmax(0, 1fr) 22px;
-        max-width: min(300px, 100%);
-        min-height: 44px;
+        gap: 7px;
+        grid-template-columns: 8px minmax(0, 1fr) 18px;
+        max-width: min(260px, 100%);
+        min-height: 36px;
         min-width: 0;
-        padding: 5px 11px 5px 14px;
+        padding: 3px 9px 3px 11px;
         position: relative;
         transition: border-color 140ms ease, background 140ms ease;
         width: 100%;
@@ -976,7 +1019,7 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .player-select-name {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 800;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -985,14 +1028,14 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .player-select-status {
         color: var(--secondary-text-color, #b7c0ce);
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 760;
         letter-spacing: 0.04em;
         text-transform: uppercase;
       }
 
       .player-select > ha-icon {
-        --mdc-icon-size: 21px;
+        --mdc-icon-size: 18px;
         color: var(--secondary-text-color, #b7c0ce);
       }
 
@@ -1035,6 +1078,43 @@ export class GammaSonosPlayerCard extends LitElement {
         display: grid;
         gap: 4px;
         text-align: center;
+      }
+
+      .now-context {
+        align-items: center;
+        color: var(--secondary-text-color, #b7c0ce);
+        display: flex;
+        flex-wrap: wrap;
+        font-size: 10px;
+        font-weight: 720;
+        gap: 6px;
+        justify-content: center;
+        letter-spacing: 0.025em;
+      }
+
+      .now-context > span:not(:last-child)::after {
+        color: rgb(255 255 255 / 28%);
+        content: '·';
+        margin-left: 6px;
+      }
+
+      .playback-state {
+        align-items: center;
+        display: inline-flex;
+        gap: 5px;
+      }
+
+      .playback-state::before {
+        background: #7f8793;
+        border-radius: 999px;
+        content: '';
+        height: 6px;
+        width: 6px;
+      }
+
+      .playback-state.active::before {
+        background: var(--gamma-sonos-accent);
+        box-shadow: 0 0 8px color-mix(in srgb, var(--gamma-sonos-accent) 58%, transparent);
       }
 
       .track {
@@ -1122,6 +1202,46 @@ export class GammaSonosPlayerCard extends LitElement {
         min-width: 0;
       }
 
+      .volume-row.primary,
+      .volume-row.compact {
+        background: rgb(255 255 255 / 5%);
+        border: 1px solid rgb(255 255 255 / 9%);
+        border-radius: 999px;
+        box-sizing: border-box;
+        padding: 5px 8px 5px 6px;
+      }
+
+      .volume-row.primary {
+        width: min(340px, 92%);
+      }
+
+      .volume-row.compact {
+        width: 100%;
+      }
+
+      .volume-row .volume-button {
+        box-shadow: none;
+        height: 32px;
+        width: 32px;
+      }
+
+      .volume-row .volume-button ha-icon {
+        --mdc-icon-size: 18px;
+      }
+
+      .volume-value {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 750;
+        min-width: 28px;
+        text-align: right;
+      }
+
+      .volume-value::after {
+        content: '%';
+      }
+
       input[type='range'] {
         accent-color: var(--gamma-sonos-accent);
         flex: 1;
@@ -1130,7 +1250,21 @@ export class GammaSonosPlayerCard extends LitElement {
 
       .tabs {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
+        grid-auto-columns: minmax(0, 1fr);
+        grid-auto-flow: column;
+      }
+
+      .tabs button {
+        gap: 6px;
+        min-width: 0;
+        padding: 0 8px;
+        position: relative;
+      }
+
+      .tabs button ha-icon {
+        --mdc-icon-size: 17px;
+        color: currentColor;
+        filter: none;
       }
 
       .grouping,
@@ -1235,12 +1369,9 @@ export class GammaSonosPlayerCard extends LitElement {
       }
 
       .tab-content {
-        max-height: min(58vh, 590px);
         min-height: 0;
         overflow-x: hidden;
-        overflow-y: auto;
-        padding-right: 2px;
-        scrollbar-width: thin;
+        overflow-y: visible;
       }
 
       .playback-feedback {
@@ -1466,6 +1597,290 @@ export class GammaSonosPlayerCard extends LitElement {
         min-height: 44px;
       }
 
+      .speaker-workspace-heading {
+        align-items: end;
+        display: flex;
+        gap: 14px;
+        justify-content: space-between;
+        min-width: 0;
+      }
+
+      .speaker-workspace-heading > span:first-child {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .speaker-workspace-heading > span:first-child > strong {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: clamp(18px, 3vw, 24px);
+        line-height: 1.05;
+      }
+
+      .speaker-workspace-heading small {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 10px;
+      }
+
+      .speaker-main-room {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 11%, rgb(255 255 255 / 5%));
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 25%, transparent);
+        border-radius: 12px;
+        display: grid;
+        flex: 0 0 auto;
+        gap: 1px;
+        max-width: 44%;
+        padding: 7px 10px;
+        text-align: right;
+      }
+
+      .speaker-main-room strong {
+        font-size: 11px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .speaker-help {
+        align-items: center;
+        background: rgb(255 255 255 / 4%);
+        border: 1px solid rgb(255 255 255 / 8%);
+        border-radius: 13px;
+        color: var(--secondary-text-color, #b7c0ce);
+        display: flex;
+        font-size: 10px;
+        gap: 9px;
+        line-height: 1.35;
+        padding: 8px 10px;
+      }
+
+      .speaker-help ha-icon {
+        --mdc-icon-size: 20px;
+        color: var(--gamma-sonos-accent);
+        flex: 0 0 auto;
+      }
+
+      .speaker-help strong {
+        color: var(--primary-text-color, #f4f7fb);
+      }
+
+      .speaker-grid {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+
+      .speaker-tile {
+        background: linear-gradient(145deg, rgb(255 255 255 / 6%), rgb(255 255 255 / 3%));
+        border: 1px solid rgb(255 255 255 / 9%);
+        border-radius: 15px;
+        display: grid;
+        min-width: 0;
+        overflow: hidden;
+        transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+      }
+
+      .speaker-tile:hover {
+        border-color: rgb(255 255 255 / 16%);
+        transform: translateY(-1px);
+      }
+
+      .speaker-tile.playing,
+      .speaker-tile.grouped,
+      .speaker-tile.selected {
+        background:
+          radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--gamma-sonos-accent) 18%, transparent), transparent 48%),
+          rgb(255 255 255 / 5%);
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 34%, transparent);
+      }
+
+      .speaker-tile.offline {
+        opacity: 0.55;
+      }
+
+      .speaker-select {
+        align-items: center;
+        appearance: none;
+        background: transparent;
+        border: 0;
+        color: inherit;
+        cursor: pointer;
+        display: grid;
+        font: inherit;
+        gap: 8px;
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        min-height: 62px;
+        padding: 9px;
+        text-align: left;
+        width: 100%;
+      }
+
+      .speaker-select:disabled {
+        opacity: 1;
+      }
+
+      .speaker-select-mark {
+        align-items: center;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 12%);
+        border-radius: 11px;
+        display: inline-flex;
+        height: 32px;
+        justify-content: center;
+        width: 32px;
+      }
+
+      .speaker-select-mark ha-icon {
+        --mdc-icon-size: 17px;
+      }
+
+      .speaker-tile.grouped .speaker-select-mark,
+      .speaker-tile.selected .speaker-select-mark {
+        background: var(--gamma-sonos-accent);
+        color: #07110c;
+      }
+
+      .speaker-tile-copy {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .speaker-tile-copy strong,
+      .speaker-tile-copy small {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .speaker-tile-copy strong {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      .speaker-tile-copy small {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 9.5px;
+      }
+
+      .speaker-badges {
+        align-items: end;
+        display: grid;
+        gap: 4px;
+        justify-items: end;
+      }
+
+      .speaker-badges > span {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 8px;
+        font-weight: 850;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .speaker-live {
+        align-items: center;
+        color: var(--gamma-sonos-accent) !important;
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .speaker-live i {
+        background: var(--gamma-sonos-accent);
+        border-radius: 999px;
+        box-shadow: 0 0 8px color-mix(in srgb, var(--gamma-sonos-accent) 62%, transparent);
+        height: 5px;
+        width: 5px;
+      }
+
+      .speaker-tile footer {
+        align-items: center;
+        border-top: 1px solid rgb(255 255 255 / 7%);
+        color: var(--secondary-text-color, #b7c0ce);
+        display: flex;
+        font-size: 9px;
+        justify-content: space-between;
+        min-height: 30px;
+        padding: 0 9px;
+      }
+
+      .speaker-tile footer > span {
+        align-items: center;
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .speaker-tile footer ha-icon {
+        --mdc-icon-size: 14px;
+      }
+
+      .speaker-tile footer button {
+        appearance: none;
+        background: transparent;
+        border: 0;
+        color: var(--gamma-sonos-accent);
+        cursor: pointer;
+        font: inherit;
+        font-weight: 800;
+      }
+
+      .speaker-tile footer button:disabled {
+        color: var(--secondary-text-color, #b7c0ce);
+      }
+
+      .speaker-selection-bar {
+        align-items: center;
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 9%, rgb(255 255 255 / 4%));
+        border: 1px solid color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent);
+        border-radius: 15px;
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
+        padding: 9px 10px;
+      }
+
+      .speaker-selection-copy {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .speaker-selection-copy strong {
+        font-size: 11px;
+      }
+
+      .speaker-selection-copy small {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 8.5px;
+      }
+
+      .speaker-selection-actions {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 6px;
+      }
+
+      .speaker-selection-actions .small-action {
+        align-items: center;
+        display: inline-flex;
+        gap: 5px;
+        white-space: nowrap;
+      }
+
+      .speaker-selection-actions ha-icon {
+        --mdc-icon-size: 15px;
+      }
+
+      .speaker-selection-actions .primary {
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 24%, transparent);
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 38%, transparent);
+      }
+
+      .speaker-selection-actions .danger {
+        border-color: rgb(255 139 139 / 25%);
+      }
+
       .speaker-list {
         display: grid;
         gap: 8px;
@@ -1517,6 +1932,197 @@ export class GammaSonosPlayerCard extends LitElement {
         min-width: 0;
       }
 
+      .browse-heading,
+      .library-shelf-heading {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
+        min-width: 0;
+      }
+
+      .browse-heading > span {
+        display: grid;
+        gap: 2px;
+      }
+
+      .browse-heading strong {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: clamp(18px, 3vw, 24px);
+        line-height: 1.05;
+      }
+
+      .browse-heading .small-action {
+        align-items: center;
+        display: inline-flex;
+        gap: 5px;
+      }
+
+      .browse-heading .small-action ha-icon {
+        --mdc-icon-size: 15px;
+      }
+
+      .browse-heading .small-action:disabled ha-icon,
+      .library-loading ha-icon {
+        animation: gamma-sonos-spin 900ms linear infinite;
+      }
+
+      .library-home {
+        display: grid;
+        gap: 16px;
+      }
+
+      .library-shelf {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .library-shelf-heading strong {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .library-shelf-heading span {
+        align-items: center;
+        background: rgb(255 255 255 / 7%);
+        border-radius: 999px;
+        color: var(--secondary-text-color, #b7c0ce);
+        display: inline-flex;
+        font-size: 9px;
+        font-weight: 850;
+        height: 20px;
+        justify-content: center;
+        min-width: 20px;
+        padding: 0 5px;
+      }
+
+      .library-grid {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+        min-width: 0;
+      }
+
+      .library-card {
+        appearance: none;
+        background: transparent;
+        border: 0;
+        color: inherit;
+        cursor: pointer;
+        display: grid;
+        font: inherit;
+        gap: 6px;
+        min-width: 0;
+        padding: 0;
+        text-align: left;
+      }
+
+      .library-art {
+        aspect-ratio: 1;
+        background:
+          radial-gradient(circle at 32% 18%, color-mix(in srgb, var(--gamma-sonos-accent) 17%, transparent), transparent 48%),
+          rgb(255 255 255 / 5%);
+        background-position: center;
+        background-size: cover;
+        border: 1px solid rgb(255 255 255 / 9%);
+        border-radius: 13px;
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+        display: grid;
+        overflow: hidden;
+        place-items: center;
+        position: relative;
+        transition: border-color 140ms ease, transform 140ms ease;
+      }
+
+      .library-card:hover .library-art {
+        border-color: color-mix(in srgb, var(--gamma-sonos-accent) 45%, transparent);
+        transform: translateY(-2px);
+      }
+
+      .library-art > ha-icon {
+        --mdc-icon-size: 30px;
+        color: color-mix(in srgb, var(--gamma-sonos-accent) 54%, #ffffff 46%);
+      }
+
+      .library-play {
+        align-items: center;
+        backdrop-filter: blur(10px);
+        background: color-mix(in srgb, var(--gamma-sonos-accent) 68%, rgb(10 16 24 / 50%));
+        border-radius: 999px;
+        bottom: 7px;
+        box-shadow: 0 5px 14px rgb(0 0 0 / 30%);
+        display: inline-flex;
+        height: 28px;
+        justify-content: center;
+        position: absolute;
+        right: 7px;
+        width: 28px;
+      }
+
+      .library-play ha-icon {
+        --mdc-icon-size: 16px;
+        color: #07110c;
+      }
+
+      .library-card-copy {
+        display: grid;
+        gap: 1px;
+        min-width: 0;
+        padding: 0 2px;
+      }
+
+      .library-card-copy strong,
+      .library-card-copy small {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .library-card-copy strong {
+        color: var(--primary-text-color, #f4f7fb);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .library-card-copy small {
+        color: var(--secondary-text-color, #b7c0ce);
+        font-size: 9px;
+      }
+
+      .library-loading,
+      .library-empty {
+        align-items: center;
+        background: rgb(255 255 255 / 4%);
+        border: 1px dashed rgb(255 255 255 / 11%);
+        border-radius: 15px;
+        color: var(--secondary-text-color, #b7c0ce);
+        display: flex;
+        font-size: 12px;
+        gap: 10px;
+        min-height: 72px;
+        padding: 12px;
+      }
+
+      .library-empty > ha-icon {
+        --mdc-icon-size: 28px;
+        color: var(--gamma-sonos-accent);
+      }
+
+      .library-empty > span {
+        display: grid;
+        gap: 2px;
+      }
+
+      .library-empty strong {
+        color: var(--primary-text-color, #f4f7fb);
+      }
+
+      .library-empty small {
+        line-height: 1.35;
+      }
+
       input[type='search'] {
         background: transparent;
         border: 0;
@@ -1530,8 +2136,7 @@ export class GammaSonosPlayerCard extends LitElement {
       .results {
         display: grid;
         gap: 12px;
-        max-height: 420px;
-        overflow: auto;
+        overflow: visible;
       }
 
       .favorites {
@@ -1886,6 +2491,117 @@ export class GammaSonosPlayerCard extends LitElement {
         background: color-mix(in srgb, var(--gamma-sonos-accent) 30%, transparent);
       }
 
+      @container (max-width: 520px) {
+        .player {
+          border-radius: 18px;
+          padding: 11px;
+        }
+
+        .player-select {
+          max-width: min(240px, 100%);
+        }
+
+        .library-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .speaker-workspace-heading,
+        .speaker-selection-bar {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .speaker-main-room {
+          align-self: start;
+          max-width: min(260px, 100%);
+          text-align: left;
+        }
+
+        .speaker-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .speaker-selection-actions {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+
+        .speaker-selection-actions .small-action {
+          justify-content: center;
+        }
+
+        .tabs button {
+          flex-direction: column;
+          font-size: 9px;
+          gap: 1px;
+          line-height: 1;
+          min-height: 42px;
+          padding: 3px 2px;
+        }
+
+        .tabs button ha-icon {
+          --mdc-icon-size: 18px;
+        }
+
+        .tab-count {
+          position: absolute;
+          transform: translate(16px, -8px);
+        }
+
+        .now-layout {
+          gap: 12px;
+        }
+
+        .now-artwork {
+          max-width: min(230px, 72vw);
+          width: min(230px, 72vw);
+        }
+
+        .now-artwork.has-art::before {
+          inset: -18px;
+          opacity: 0.42;
+        }
+
+        .track {
+          font-size: clamp(19px, 6.2vw, 24px);
+        }
+
+        .up-next-card {
+          border-radius: 15px;
+          padding: 10px;
+          width: 100%;
+        }
+
+        .up-next-header,
+        .queue-title-row,
+        .queue-header {
+          align-items: flex-start;
+          flex-wrap: wrap;
+        }
+
+        .queue-toolbar-actions {
+          margin-left: auto;
+        }
+
+        .volume-row.primary {
+          width: min(330px, 100%);
+        }
+
+        .mini-player {
+          grid-template-columns: 42px minmax(0, 1fr) auto;
+          min-height: 56px;
+        }
+
+        .mini-controls .icon-button {
+          display: none;
+        }
+
+        .mini-controls .play-button {
+          height: 42px;
+          width: 42px;
+        }
+      }
+
       @container (max-width: 340px) {
         .topbar {
           gap: 6px;
@@ -2001,12 +2717,7 @@ export class GammaSonosPlayerCard extends LitElement {
 
     if (!this.initialTabResolved) {
       this.initialTabResolved = true;
-      if (!this.isPlaying && this.config.show_search) {
-        this.activeTab = 'search';
-        window.setTimeout(() => {
-          this.shadowRoot?.querySelector<HTMLInputElement>("input[type='search']")?.focus();
-        }, 0);
-      }
+      this.activeTab = 'now';
     }
 
     if (this.isPlaying && (this.playbackStatus || this.playbackSlow)) {
@@ -2029,6 +2740,7 @@ export class GammaSonosPlayerCard extends LitElement {
     this.searchRequestId += 1;
     this.albumRequestId += 1;
     this.playlistRequestId += 1;
+    this.libraryRequestId += 1;
     this.queueRequestId += 1;
     this.volumeCommitTimers.forEach((timer) => window.clearTimeout(timer));
     this.volumeResetTimers.forEach((timer) => window.clearTimeout(timer));
@@ -2111,8 +2823,29 @@ export class GammaSonosPlayerCard extends LitElement {
       return candidate.entity_id === this.selectedEntityId ? candidate : current;
     }
 
+    if ((current.state === 'playing') !== (candidate.state === 'playing')) {
+      return candidate.state === 'playing' ? candidate : current;
+    }
+
     if (isUnavailable(current) !== isUnavailable(candidate)) {
       return isUnavailable(current) ? candidate : current;
+    }
+
+    const currentHasMedia = Boolean(
+      current.attributes.media_title ||
+      current.attributes.entity_picture ||
+      current.attributes.entity_picture_local ||
+      current.attributes.media_image_url
+    );
+    const candidateHasMedia = Boolean(
+      candidate.attributes.media_title ||
+      candidate.attributes.entity_picture ||
+      candidate.attributes.entity_picture_local ||
+      candidate.attributes.media_image_url
+    );
+
+    if (currentHasMedia !== candidateHasMedia) {
+      return candidateHasMedia ? candidate : current;
     }
 
     if (isMusicAssistantPlayer(candidate) && !isMusicAssistantPlayer(current)) {
@@ -2135,9 +2868,10 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private get allPlayers(): HassEntity[] {
-    const configured = this.config.entities?.length
-      ? this.config.entities
-      : (this.config.music_assistant_entities ?? []);
+    const configured = [...new Set([
+      ...(this.config.entities ?? []),
+      ...(this.config.music_assistant_entities ?? []),
+    ])];
     const playerConfigKey = [
       this.selectedEntityId,
       configured.join('\u0000'),
@@ -2154,12 +2888,9 @@ export class GammaSonosPlayerCard extends LitElement {
     let players: HassEntity[];
 
     if (configured.length > 0) {
-      const configuredPlayers = configured
+      players = this.dedupeRoomPlayers(configured
         .map((entityId) => this.hass?.states[entityId])
-        .filter((entity): entity is HassEntity => Boolean(entity));
-      players = this.dedupePlayers(configuredPlayers.map((player) => (
-        this.matchingMusicAssistantPlayer(player) ?? player
-      )));
+        .filter((entity): entity is HassEntity => Boolean(entity)));
     } else {
       players = this.dedupeRoomPlayers(this.cachedMediaPlayers.filter((entity) => this.isDiscoverablePlayer(entity)));
     }
@@ -2268,7 +2999,7 @@ export class GammaSonosPlayerCard extends LitElement {
     return this.isPlaying ? this.playbackEntityId : this.activeEntityId;
   }
 
-  private get progressPercent(): number {
+  private get progressPositionSeconds(): number {
     const duration = toNumber(this.playbackPlayer?.attributes.media_duration, 0);
     let position = toNumber(this.playbackPlayer?.attributes.media_position, 0);
     const updatedAt = String(this.playbackPlayer?.attributes.media_position_updated_at ?? '');
@@ -2284,11 +3015,29 @@ export class GammaSonosPlayerCard extends LitElement {
       }
     }
 
-    return Math.max(0, Math.min(100, (position / duration) * 100));
+    return Math.max(0, Math.min(duration, position));
+  }
+
+  private get progressDurationSeconds(): number {
+    return Math.max(0, toNumber(this.playbackPlayer?.attributes.media_duration, 0));
+  }
+
+  private get progressPercent(): number {
+    const duration = this.progressDurationSeconds;
+    return duration > 0
+      ? Math.max(0, Math.min(100, (this.progressPositionSeconds / duration) * 100))
+      : 0;
   }
 
   private get hasProgress(): boolean {
-    return toNumber(this.playbackPlayer?.attributes.media_duration, 0) > 0;
+    return this.progressDurationSeconds > 0;
+  }
+
+  private formatDuration(seconds: number): string {
+    const rounded = Math.max(0, Math.floor(seconds));
+    const minutes = Math.floor(rounded / 60);
+    const remainder = rounded % 60;
+    return `${minutes}:${String(remainder).padStart(2, '0')}`;
   }
 
   private readStorage(key: string): string {
@@ -3274,6 +4023,82 @@ export class GammaSonosPlayerCard extends LitElement {
 
     this.cacheItems(this.searchCache, key, items, SEARCH_CACHE_TTL_MS);
     return items;
+  }
+
+  private async fetchMusicAssistantLibrary(mediaType: LibraryMediaType): Promise<SearchItem[]> {
+    if (!this.hass?.callWS) {
+      throw new Error('This Home Assistant frontend does not expose action responses here.');
+    }
+
+    if (!this.config.music_assistant_config_entry_id) {
+      throw new Error('Add music_assistant_config_entry_id to this card to load your library.');
+    }
+
+    const serviceData: Record<string, unknown> = {
+      config_entry_id: this.config.music_assistant_config_entry_id,
+      media_type: mediaType,
+      limit: mediaType === 'track' ? 8 : 12,
+      offset: 0,
+      order_by: 'timestamp_added_desc',
+    };
+    const key = `library:${this.cacheKey(serviceData)}`;
+    const cached = this.cachedItems(this.browseCache, key);
+    if (cached) {
+      return cached;
+    }
+
+    const response = await this.withTimeout(
+      this.hass.callWS<Record<string, unknown>>({
+        type: 'call_service',
+        domain: 'music_assistant',
+        service: 'get_library',
+        service_data: serviceData,
+        return_response: true,
+      }),
+      WEBSOCKET_TIMEOUT_MS,
+      `Loading your ${mediaType}s timed out. Try again.`,
+    );
+    const responseBody = response.response as Record<string, unknown> | undefined;
+    const source = responseBody ?? response;
+    const rawItems = Array.isArray(source.items) ? source.items : [];
+    const items = rawItems
+      .filter((item): item is Record<string, unknown> => typeof item === 'object' && Boolean(item))
+      .map((item) => this.normalizeSearchItem(item, mediaType));
+
+    this.cacheItems(this.browseCache, key, items, BROWSE_CACHE_TTL_MS);
+    return items;
+  }
+
+  private async loadMusicLibrary(force = false): Promise<void> {
+    if (this.libraryLoading || (this.libraryLoaded && !force)) {
+      return;
+    }
+
+    const requestId = ++this.libraryRequestId;
+    this.libraryLoading = true;
+    this.libraryError = '';
+
+    try {
+      const [playlist, album, artist, track] = await Promise.all([
+        this.fetchMusicAssistantLibrary('playlist'),
+        this.fetchMusicAssistantLibrary('album'),
+        this.fetchMusicAssistantLibrary('artist'),
+        this.fetchMusicAssistantLibrary('track'),
+      ]);
+      if (requestId !== this.libraryRequestId) {
+        return;
+      }
+      this.libraryItems = { playlist, album, artist, track };
+      this.libraryLoaded = true;
+    } catch (error) {
+      if (requestId === this.libraryRequestId) {
+        this.libraryError = this.errorMessage(error, 'Your Music Assistant library could not be loaded.');
+      }
+    } finally {
+      if (requestId === this.libraryRequestId) {
+        this.libraryLoading = false;
+      }
+    }
   }
 
   private async searchMusicAssistant(preserveArtist = false): Promise<void> {
@@ -4512,6 +5337,41 @@ export class GammaSonosPlayerCard extends LitElement {
     `;
   }
 
+  private renderVolumeControl(context: 'primary' | 'compact' = 'primary'): TemplateResult {
+    const unavailable = isUnavailable(this.activePlayer);
+
+    return html`
+      <div class="volume-row ${context}" aria-label="Speaker volume control">
+        <button
+          class="icon-button volume-button"
+          aria-label="Mute speaker"
+          ?disabled=${unavailable}
+          @click=${this.toggleMute}
+        >
+          <ha-icon .icon=${(this.isPlaying ? this.playbackPlayer : this.activePlayer)?.attributes.is_volume_muted
+            ? 'mdi:volume-off'
+            : this.volume < 35
+              ? 'mdi:volume-low'
+              : 'mdi:volume-high'}></ha-icon>
+        </button>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          .value=${String(this.volume)}
+          ?disabled=${unavailable}
+          aria-label="Speaker volume"
+          @input=${(event: Event) => {
+            const value = this.updateVolumeLabel(event);
+            this.setPlayerVolume(this.volumeEntityId, value);
+          }}
+          @change=${(event: Event) => this.setVolume(this.updateVolumeLabel(event))}
+        />
+        <span class="volume-value">${this.volume}</span>
+      </div>
+    `;
+  }
+
   private renderTabs(): TemplateResult {
     return html`
       <div
@@ -4524,15 +5384,18 @@ export class GammaSonosPlayerCard extends LitElement {
             this.activeTab = 'now';
           }}
         >
-          Now
+          <ha-icon .icon=${'mdi:music-circle'}></ha-icon>
+          <span>Now</span>
         </button>
         <button
           class=${this.activeTab === 'search' ? 'active' : ''}
           @click=${() => {
             this.activeTab = 'search';
+            void this.loadMusicLibrary();
           }}
         >
-          Browse
+          <ha-icon .icon=${'mdi:magnify'}></ha-icon>
+          <span>Browse</span>
         </button>
         <button
           class=${this.activeTab === 'queue' ? 'active' : ''}
@@ -4541,7 +5404,8 @@ export class GammaSonosPlayerCard extends LitElement {
             void this.refreshQueue();
           }}
         >
-          Queue
+          <ha-icon .icon=${'mdi:playlist-music'}></ha-icon>
+          <span>Queue</span>
           ${this.queueItems.length > 0
             ? html`<span class="tab-count">${Math.min(this.queueItems.length, 99)}</span>`
             : nothing}
@@ -4552,7 +5416,8 @@ export class GammaSonosPlayerCard extends LitElement {
             this.activeTab = 'speakers';
           }}
         >
-          Speakers
+          <ha-icon .icon=${'mdi:speaker-multiple'}></ha-icon>
+          <span>Speakers</span>
         </button>
         ${this.config.show_party
           ? html`
@@ -4562,7 +5427,8 @@ export class GammaSonosPlayerCard extends LitElement {
                   this.activeTab = 'party';
                 }}
               >
-                Party
+                <ha-icon .icon=${'mdi:party-popper'}></ha-icon>
+                <span>Party</span>
               </button>
             `
           : nothing}
@@ -4573,6 +5439,12 @@ export class GammaSonosPlayerCard extends LitElement {
   private renderNowPlaying(title: string, artist: string, unavailable: boolean): TemplateResult {
     const artworkUrl = this.artworkUrl;
     const empty = !artworkUrl && title === 'No music selected';
+    const source = String(
+      this.playbackPlayer?.attributes.source ||
+      this.playbackPlayer?.attributes.app_name ||
+      '',
+    );
+    const remaining = Math.max(0, this.progressDurationSeconds - this.progressPositionSeconds);
 
     return html`
       <section class="now-view ${empty ? 'empty' : ''}">
@@ -4588,17 +5460,34 @@ export class GammaSonosPlayerCard extends LitElement {
                     </span>
                   `}
             </div>
-            ${this.hasProgress
-              ? html`
-                  <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${String(Math.round(this.progressPercent))}>
-                    <div class="progress-fill" style=${`width: ${this.progressPercent}%`}></div>
-                  </div>
-                `
-              : nothing}
             <div class="metadata">
+              <span class="now-context">
+                <span class="playback-state ${this.isPlaying ? 'active' : ''}">
+                  ${this.isPlaying
+                    ? 'Playing'
+                    : this.activePlayer
+                      ? this.playerQuickStatus(this.activePlayer)
+                      : 'Offline'}
+                </span>
+                <span>${this.activeName}</span>
+                ${source ? html`<span>${source}</span>` : nothing}
+              </span>
               <span class="track">${title}</span>
               <span class="artist">${empty ? 'Browse Music Assistant or choose a room' : artist}</span>
             </div>
+            ${this.hasProgress
+              ? html`
+                  <div class="progress-cluster">
+                    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${String(Math.round(this.progressPercent))}>
+                      <div class="progress-fill" style=${`width: ${this.progressPercent}%`}></div>
+                    </div>
+                    <div class="progress-time">
+                      <span>${this.formatDuration(this.progressPositionSeconds)}</span>
+                      <span>−${this.formatDuration(remaining)}</span>
+                    </div>
+                  </div>
+                `
+              : nothing}
             ${empty
               ? html`
                   <div class="empty-actions">
@@ -4606,6 +5495,7 @@ export class GammaSonosPlayerCard extends LitElement {
                       ? html`
                           <button class="small-action primary" @click=${() => {
                             this.activeTab = 'search';
+                            void this.loadMusicLibrary();
                           }}>
                             <ha-icon .icon=${'mdi:magnify'}></ha-icon>
                             Browse music
@@ -4651,6 +5541,7 @@ export class GammaSonosPlayerCard extends LitElement {
                 <ha-icon .icon=${'mdi:skip-next'}></ha-icon>
               </button>
             </div>
+            ${this.renderVolumeControl('primary')}
           </div>
           ${empty ? nothing : this.renderUpNextPreview()}
         </div>
@@ -4703,6 +5594,7 @@ export class GammaSonosPlayerCard extends LitElement {
                   ${this.config.show_search
                     ? html`<button class="small-action" @click=${() => {
                         this.activeTab = 'search';
+                        void this.loadMusicLibrary();
                       }}>Browse music</button>`
                     : nothing}
                 </div>
@@ -4812,9 +5704,25 @@ export class GammaSonosPlayerCard extends LitElement {
       return nothing;
     }
 
+    const showingLibrary = !this.query.trim() && this.browserView === 'results';
+
     return html`
       <section class="search">
-        <span class="section-title">Browse Music Assistant</span>
+        <div class="browse-heading">
+          <span>
+            <span class="eyebrow">Music Assistant</span>
+            <strong>Your Library</strong>
+          </span>
+          <button
+            class="small-action"
+            title="Refresh library"
+            ?disabled=${this.libraryLoading}
+            @click=${() => this.loadMusicLibrary(true)}
+          >
+            <ha-icon .icon=${this.libraryLoading ? 'mdi:loading' : 'mdi:refresh'}></ha-icon>
+            Refresh
+          </button>
+        </div>
         <div class="search-row">
           <ha-icon .icon=${'mdi:magnify'}></ha-icon>
           <input
@@ -4839,7 +5747,9 @@ export class GammaSonosPlayerCard extends LitElement {
             <ha-icon .icon=${'mdi:magnify'}></ha-icon>
           </button>
         </div>
-        ${this.renderFavorites()}
+        ${showingLibrary ? this.renderLibraryHome() : nothing}
+        ${showingLibrary ? this.renderFavorites() : nothing}
+        ${this.libraryError && showingLibrary ? html`<div class="error">${this.libraryError}</div>` : nothing}
         ${this.searchError ? html`<div class="error">${this.searchError}</div>` : nothing}
         ${this.searching ? html`<div class="hint">Searching...</div>` : nothing}
         ${this.searchResults.length > 0
@@ -4855,6 +5765,96 @@ export class GammaSonosPlayerCard extends LitElement {
           ? html`<div class="hint">Tap a song to play it, or choose Play next to add it to the queue.</div>`
           : nothing}
       </section>
+    `;
+  }
+
+  private renderLibraryHome(): TemplateResult {
+    const total = Object.values(this.libraryItems).reduce((sum, items) => sum + items.length, 0);
+
+    if (this.libraryLoading && total === 0) {
+      return html`
+        <div class="library-loading">
+          <ha-icon .icon=${'mdi:loading'}></ha-icon>
+          <span>Loading playlists, albums, artists, and songs…</span>
+        </div>
+      `;
+    }
+
+    if (!this.libraryLoaded && !this.libraryError) {
+      void this.loadMusicLibrary();
+    }
+
+    if (this.libraryLoaded && total === 0) {
+      return html`
+        <div class="library-empty">
+          <ha-icon .icon=${'mdi:bookshelf'}></ha-icon>
+          <span>
+            <strong>Your library is empty</strong>
+            <small>Add or favorite music in Music Assistant, then refresh this view.</small>
+          </span>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="library-home">
+        ${this.renderLibraryShelf('Playlists', 'playlist', 'mdi:playlist-music', 6)}
+        ${this.renderLibraryShelf('Recently added albums', 'album', 'mdi:album', 6)}
+        ${this.renderLibraryShelf('Artists', 'artist', 'mdi:account-music', 6)}
+        ${this.renderLibraryShelf('Recently added songs', 'track', 'mdi:music-note', 6)}
+      </div>
+    `;
+  }
+
+  private renderLibraryShelf(
+    label: string,
+    mediaType: LibraryMediaType,
+    fallbackIcon: string,
+    limit: number,
+  ): TemplateResult | typeof nothing {
+    const items = this.libraryItems[mediaType].slice(0, limit);
+    if (items.length === 0) {
+      return nothing;
+    }
+
+    return html`
+      <section class="library-shelf">
+        <div class="library-shelf-heading">
+          <strong>${label}</strong>
+          <span>${this.libraryItems[mediaType].length}</span>
+        </div>
+        <div class="library-grid">
+          ${items.map((item) => this.renderLibraryCard(item, fallbackIcon))}
+        </div>
+      </section>
+    `;
+  }
+
+  private renderLibraryCard(item: SearchItem, fallbackIcon: string): TemplateResult {
+    const mediaType = (item.media_type || item.type || 'track') as MediaType;
+    const image = item.image || item.thumb || item.album?.image || '';
+    const subtitle = this.itemArtist(item) || titleCase(mediaType);
+    const action = mediaType === 'artist'
+      ? () => this.openArtist(item)
+      : mediaType === 'album'
+        ? () => this.openAlbum(item)
+        : mediaType === 'playlist'
+          ? () => this.openPlaylist(item)
+          : () => this.playSearchResult(item, 'play');
+
+    return html`
+      <button class="library-card" @click=${action} title=${item.name ?? 'Open'}>
+        <span class="library-art" style=${image ? `background-image: url("${image}")` : ''}>
+          ${image ? nothing : html`<ha-icon .icon=${fallbackIcon}></ha-icon>`}
+          ${mediaType === 'track'
+            ? html`<span class="library-play"><ha-icon .icon=${'mdi:play'}></ha-icon></span>`
+            : nothing}
+        </span>
+        <span class="library-card-copy">
+          <strong>${item.name ?? item.uri ?? 'Untitled'}</strong>
+          <small>${subtitle}</small>
+        </span>
+      </button>
     `;
   }
 
@@ -5132,10 +6132,70 @@ export class GammaSonosPlayerCard extends LitElement {
   }
 
   private renderSpeakers(): TemplateResult {
+    const anchor = this.sonosGroupAnchor;
+    const anchorEntityId = anchor?.entity_id ?? '';
+    const currentMembers = new Set(this.groupMembers);
+    const pendingCount = this.pendingGroupIds.filter((id) => id !== anchorEntityId).length;
+    const currentCount = currentMembers.size;
+    const totalPlaying = this.allPlayers.filter((player) => player.state === 'playing').length;
+
     return html`
       <section class="speakers">
-        ${this.renderCurrentGroup()}
-        ${this.renderGrouping()}
+        <div class="speaker-workspace-heading">
+          <span>
+            <span class="eyebrow">Whole-home audio</span>
+            <strong>Rooms & Groups</strong>
+            <small>${totalPlaying} playing · ${currentCount > 1 ? `${currentCount} grouped` : 'This room is solo'}</small>
+          </span>
+          <span class="speaker-main-room">
+            <small>Main room</small>
+            <strong>${anchor?.attributes.friendly_name ?? this.activeName ?? 'Choose a room'}</strong>
+          </span>
+        </div>
+
+        <div class="speaker-help">
+          <ha-icon .icon=${'mdi:gesture-tap-button'}></ha-icon>
+          <span>Select every room you want, then press <strong>Play together</strong>. Use “Control” to make another room the main room.</span>
+        </div>
+
+        ${this.groupError ? html`<div class="error">${this.groupError}</div>` : nothing}
+        <div class="speaker-grid">
+          ${this.allPlayers.map((player) => this.renderSpeakerCard(player, anchorEntityId, currentMembers))}
+        </div>
+
+        ${this.config.show_grouping && this.groupablePlayers.length > 1
+          ? html`
+              <div class="speaker-selection-bar">
+                <span class="speaker-selection-copy">
+                  <strong>${pendingCount > 0 ? `${pendingCount + 1} rooms selected` : currentCount > 1 ? `${currentCount} rooms playing together` : 'Choose rooms to add'}</strong>
+                  <small>${pendingCount > 0 ? `Main room: ${anchor?.attributes.friendly_name ?? this.activeName}` : 'Selections do not change audio until you apply them.'}</small>
+                </span>
+                <span class="speaker-selection-actions">
+                  ${pendingCount > 0
+                    ? html`
+                        <button class="small-action" @click=${() => {
+                          this.pendingGroupIds = [];
+                        }}>Clear</button>
+                      `
+                    : nothing}
+                  <button
+                    class="small-action primary speaker-apply"
+                    ?disabled=${this.groupPending || pendingCount === 0}
+                    @click=${this.groupSelected}
+                  >
+                    <ha-icon .icon=${this.groupPending ? 'mdi:loading' : 'mdi:speaker-multiple'}></ha-icon>
+                    ${this.groupPending ? 'Grouping…' : 'Play together'}
+                  </button>
+                  <button
+                    class="small-action danger"
+                    ?disabled=${this.groupPending || currentCount <= 1}
+                    @click=${this.ungroupAll}
+                  >Ungroup</button>
+                </span>
+              </div>
+            `
+          : nothing}
+
         ${this.renderTransferPlayback()}
         <button
           class="section-toggle"
@@ -5191,6 +6251,68 @@ export class GammaSonosPlayerCard extends LitElement {
             `
           : nothing}
       </section>
+    `;
+  }
+
+  private renderSpeakerCard(
+    player: HassEntity,
+    anchorEntityId: string,
+    currentMembers: Set<string>,
+  ): TemplateResult {
+    const unavailable = isUnavailable(player);
+    const isAnchor = player.entity_id === anchorEntityId;
+    const inCurrentGroup = currentMembers.has(player.entity_id);
+    const pending = this.pendingGroupIds.includes(player.entity_id);
+    const canGroup = this.groupablePlayers.some((candidate) => candidate.entity_id === player.entity_id);
+    const playing = player.state === 'playing';
+    const title = String(player.attributes.media_title ?? '');
+    const volume = Math.round(toNumber(player.attributes.volume_level, 0) * 100);
+    const status = unavailable
+      ? 'Offline'
+      : playing
+        ? title || 'Playing'
+        : player.state === 'paused'
+          ? title || 'Paused'
+          : inCurrentGroup
+            ? 'Grouped'
+            : 'Ready';
+    const selectionLabel = isAnchor
+      ? 'Main'
+      : inCurrentGroup
+        ? 'Grouped'
+        : pending
+          ? 'Selected'
+          : canGroup
+            ? 'Add'
+            : 'Unavailable';
+
+    return html`
+      <article class="speaker-tile ${playing ? 'playing' : ''} ${inCurrentGroup ? 'grouped' : ''} ${pending ? 'selected' : ''} ${unavailable ? 'offline' : ''}">
+        <button
+          class="speaker-select"
+          ?disabled=${this.groupPending || isAnchor || inCurrentGroup || !canGroup}
+          aria-label=${`${pending ? 'Remove' : 'Add'} ${player.attributes.friendly_name ?? player.entity_id}`}
+          @click=${() => this.toggleGroupSelection(player.entity_id)}
+        >
+          <span class="speaker-select-mark">
+            <ha-icon .icon=${isAnchor ? 'mdi:home-sound-out' : inCurrentGroup || pending ? 'mdi:check' : 'mdi:plus'}></ha-icon>
+          </span>
+          <span class="speaker-tile-copy">
+            <strong>${player.attributes.friendly_name ?? titleCase(player.entity_id.split('.')[1])}</strong>
+            <small>${status}</small>
+          </span>
+          <span class="speaker-badges">
+            ${playing ? html`<span class="speaker-live"><i></i>Playing</span>` : nothing}
+            <span>${selectionLabel}</span>
+          </span>
+        </button>
+        <footer>
+          <span><ha-icon .icon=${player.attributes.is_volume_muted ? 'mdi:volume-off' : 'mdi:volume-medium'}></ha-icon>${volume}%</span>
+          ${inCurrentGroup && !isAnchor
+            ? html`<button ?disabled=${this.groupPending} @click=${() => this.removeFromGroup(player.entity_id)}>Remove</button>`
+            : html`<button ?disabled=${unavailable || isAnchor} @click=${() => this.selectPlayer(player.entity_id)}>${isAnchor ? 'Controlling' : 'Control'}</button>`}
+        </footer>
+      </article>
     `;
   }
 
@@ -5352,26 +6474,8 @@ export class GammaSonosPlayerCard extends LitElement {
             ${this.renderHeaderIdentity()}
           </div>
           ${this.renderRooms()}
-          ${this.renderMiniPlayer(title, artist, unavailable)}
-          <div class="volume-row">
-            <button class="icon-button" aria-label="Mute speaker" ?disabled=${unavailable} @click=${this.toggleMute}>
-              <ha-icon .icon=${(this.isPlaying ? this.playbackPlayer : this.activePlayer)?.attributes.is_volume_muted ? 'mdi:volume-off' : 'mdi:volume-high'}></ha-icon>
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              .value=${String(this.volume)}
-              ?disabled=${unavailable}
-              aria-label="Speaker volume"
-              @input=${(event: Event) => {
-                const value = this.updateVolumeLabel(event);
-                this.setPlayerVolume(this.volumeEntityId, value);
-              }}
-              @change=${(event: Event) => this.setVolume(this.updateVolumeLabel(event))}
-            />
-            <span class="state">${this.volume}%</span>
-          </div>
+          ${this.activeTab === 'now' ? nothing : this.renderMiniPlayer(title, artist, unavailable)}
+          ${this.activeTab === 'now' ? nothing : this.renderVolumeControl('compact')}
           ${this.renderPlaybackFeedback()}
           ${this.renderTabs()}
           <div class="tab-content">
@@ -5713,7 +6817,7 @@ class GammaSonosPlayerCardEditor extends LitElement {
               'music_assistant_config_entry_id',
               '01KQ...',
             )}
-            ${this.renderSelect('Enqueue Mode', 'enqueue_mode', ['play', 'next', 'replace', 'replace_next', 'add'], 'play')}
+            ${this.renderSelect('Enqueue Mode', 'enqueue_mode', ['play', 'next', 'replace', 'replace_next', 'add'], 'next')}
             ${this.renderNumberInput('Search Limit', 'search_limit', '8')}
           </div>
         </section>
