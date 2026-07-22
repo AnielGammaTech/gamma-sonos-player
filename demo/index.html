@@ -202,10 +202,15 @@
             entity.attributes.is_volume_muted = Boolean(data.is_volume_muted);
           }
           if (domain === 'media_player' && service === 'join') {
-            entity.attributes.group_members = [
-              entity.entity_id,
+            entity.attributes.group_members = [...new Set([
+              ...(entity.attributes.group_members || [entity.entity_id]),
               ...data.group_members,
-            ];
+            ])];
+            entity.attributes.group_members.forEach((memberId) => {
+              if (states[memberId]) {
+                states[memberId].attributes.group_members = [...entity.attributes.group_members];
+              }
+            });
           }
           if (domain === 'media_player' && service === 'unjoin') {
             entity.attributes.group_members = [entity.entity_id];
@@ -250,6 +255,8 @@
             const type = message.service_data?.media_type;
             const library = {
               playlist: [
+                { name: 'Infinite Mix (favorites)', uri: 'builtin://playlist/infinite-favorites', media_type: 'playlist' },
+                { name: 'Infinite Mix (library)', uri: 'builtin://playlist/infinite-library', media_type: 'playlist' },
                 { name: 'Sunday Morning', uri: 'spotify://playlist/sunday', media_type: 'playlist', image: 'https://images.unsplash.com/photo-1487180144351-b8472da7d491?auto=format&fit=crop&w=360&q=80' },
                 { name: 'Dinner & Wine', uri: 'spotify://playlist/dinner', media_type: 'playlist', image: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=360&q=80' },
                 { name: 'Backyard Nights', uri: 'spotify://playlist/backyard', media_type: 'playlist', image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=360&q=80' },
